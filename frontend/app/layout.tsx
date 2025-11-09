@@ -51,6 +51,9 @@ export const metadata: Metadata = {
   description: "A pixelated, space-themed onchain mafia/bluff game",
   generator: "v0.app",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
+  icons: {
+    icon: "/images/PepasurLogo.png",
+  },
 }
 
 export default function RootLayout({
