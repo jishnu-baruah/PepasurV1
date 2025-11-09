@@ -11,6 +11,7 @@ import { useWallet, type InputTransactionData } from "@aptos-labs/wallet-adapter
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk"
 import { smoothSendClient } from "@/lib/smoothsend"
 import LobbySettingsDialog, { FullGameSettings, DEFAULT_GAME_SETTINGS } from "@/components/lobby-settings-dialog"
+import FaucetButton from "@/components/faucet-button"
 
 // Initialize Aptos client
 const config = new AptosConfig({
@@ -86,6 +87,77 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
 
   // Aptos wallet hooks
   const { account, connected, signAndSubmitTransaction, signTransaction } = useWallet()
+
+  // Helper function to fetch balance
+  const fetchBalance = async () => {
+    if (!account?.address) {
+      setBalanceLoading(false)
+      return
+    }
+
+    try {
+      setBalanceLoading(true)
+
+      // SDK handles address parsing internally - just pass the string
+      // Use getAccountAPTAmount - simpler and more reliable
+      try {
+        // SDK v1.39.0 expects object with accountAddress as string
+        const balance = await aptos.getAccountAPTAmount({
+          accountAddress: account.address.toString()
+        });
+
+        const balanceInAPT = (Number(balance) / 100000000).toFixed(4);
+        console.log('💰 APT Balance:', balance, 'Octas =', balanceInAPT, 'APT');
+
+        setBalanceInfo({
+          balance: balance.toString(),
+          balanceInAPT,
+          sufficient: Number(balance) >= stakeAmount
+        });
+      } catch (error) {
+        console.error('Error with getAccountAPTAmount:', error);
+
+        // Fallback to getAccountResources
+        console.log('⚠️ Trying getAccountResources fallback...');
+        // SDK v1.39.0 expects object with accountAddress as string
+        const resources = await aptos.getAccountResources({
+          accountAddress: account.address.toString()
+        });
+
+        const aptosCoinResource = resources.find(
+          (r) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
+        );
+
+        if (aptosCoinResource) {
+          const balance = (aptosCoinResource.data as any).coin.value;
+          const balanceInAPT = (Number(balance) / 100000000).toFixed(4);
+
+          console.log('💰 APT Balance (Resources):', balance, 'Octas =', balanceInAPT, 'APT');
+
+          setBalanceInfo({
+            balance: balance.toString(),
+            balanceInAPT,
+            sufficient: Number(balance) >= stakeAmount
+          });
+        } else {
+          setBalanceInfo({
+            balance: "0",
+            balanceInAPT: "0.0000",
+            sufficient: false
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching balance:', error);
+      setBalanceInfo({
+        balance: "0",
+        balanceInAPT: "0.0000",
+        sufficient: false
+      });
+    } finally {
+      setBalanceLoading(false)
+    }
+  }
 
   // Helper function to convert gameId to proper format for Move function
   const convertGameIdForMove = (gameId: string | number): number => {
@@ -184,76 +256,6 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
 
   // Fetch account balance
   useEffect(() => {
-    const fetchBalance = async () => {
-      if (!account?.address) {
-        setBalanceLoading(false)
-        return
-      }
-
-      try {
-        setBalanceLoading(true)
-
-        // SDK handles address parsing internally - just pass the string
-        // Use getAccountAPTAmount - simpler and more reliable
-        try {
-          // SDK v1.39.0 expects object with accountAddress as string
-          const balance = await aptos.getAccountAPTAmount({
-            accountAddress: account.address.toString()
-          });
-
-          const balanceInAPT = (Number(balance) / 100000000).toFixed(4);
-          console.log('💰 APT Balance:', balance, 'Octas =', balanceInAPT, 'APT');
-
-          setBalanceInfo({
-            balance: balance.toString(),
-            balanceInAPT,
-            sufficient: Number(balance) >= stakeAmount
-          });
-        } catch (error) {
-          console.error('Error with getAccountAPTAmount:', error);
-
-          // Fallback to getAccountResources
-          console.log('⚠️ Trying getAccountResources fallback...');
-          // SDK v1.39.0 expects object with accountAddress as string
-          const resources = await aptos.getAccountResources({
-            accountAddress: account.address.toString()
-          });
-
-          const aptosCoinResource = resources.find(
-            (r) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
-          );
-
-          if (aptosCoinResource) {
-            const balance = (aptosCoinResource.data as any).coin.value;
-            const balanceInAPT = (Number(balance) / 100000000).toFixed(4);
-
-            console.log('💰 APT Balance (Resources):', balance, 'Octas =', balanceInAPT, 'APT');
-
-            setBalanceInfo({
-              balance: balance.toString(),
-              balanceInAPT,
-              sufficient: Number(balance) >= stakeAmount
-            });
-          } else {
-            setBalanceInfo({
-              balance: "0",
-              balanceInAPT: "0.0000",
-              sufficient: false
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching balance:', error);
-        setBalanceInfo({
-          balance: "0",
-          balanceInAPT: "0.0000",
-          sufficient: false
-        });
-      } finally {
-        setBalanceLoading(false)
-      }
-    }
-
     fetchBalance()
   }, [account?.address])
 
@@ -658,6 +660,20 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Faucet Button */}
+          <div className="flex justify-center">
+            <FaucetButton
+              walletAddress={playerAddress || null}
+              onSuccess={async () => {
+                console.log('✅ Faucet claim successful! Refreshing balance...')
+                // Wait a bit for blockchain confirmation
+                setTimeout(() => {
+                  fetchBalance()
+                }, 2000)
+              }}
+            />
           </div>
 
           <div className="border-t border-border my-4"></div>

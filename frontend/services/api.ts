@@ -301,6 +301,61 @@ class ApiService {
       timestamp: string
     }>('/api/health')
   }
+
+  // Faucet Methods
+  async claimFaucet(userAddress: string) {
+    return this.request<{
+      success: boolean
+      data?: {
+        transactionHash: string
+        amount: number
+        amountOctas: number
+        recipient: string
+        nextClaimTime: string
+        message: string
+      }
+      error?: string
+      nextRequestTime?: string
+      timeRemaining?: number
+    }>('/api/faucet/claim', {
+      method: 'POST',
+      body: JSON.stringify({ userAddress }),
+    })
+  }
+
+  async getFaucetInfo(userAddress: string) {
+    return this.request<{
+      success: boolean
+      data: {
+        faucetAmount: number
+        cooldownHours: number
+        canClaim: boolean
+        lastClaimTime: string | null
+        nextClaimTime: string | null
+        timeRemaining: string
+      }
+    }>(`/api/faucet/info/${userAddress}`)
+  }
+
+  async getFaucetStats() {
+    return this.request<{
+      success: boolean
+      data: {
+        totalRequests: number
+        last24Hours: number
+        last7Days: number
+        totalDistributed: number
+        faucetAmount: number
+        cooldownHours: number
+        server: {
+          address: string
+          balance: number | null
+          balanceAPT: number | null
+          status: string
+        }
+      }
+    }>('/api/faucet/stats')
+  }
 }
 
 export const apiService = new ApiService()

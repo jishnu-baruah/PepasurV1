@@ -387,6 +387,48 @@ class AptosService {
     }
   }
 
+  /**
+   * Send APT from server account to recipient (faucet)
+   * @param {string} recipientAddress - Address to send APT to
+   * @param {number} amountInOctas - Amount in octas (1 APT = 100000000 octas)
+   * @returns {Promise<string>} Transaction hash
+   */
+  async sendAPT(recipientAddress, amountInOctas) {
+    try {
+      if (!this.aptos || !this.account) {
+        throw new Error('Aptos client or account not initialized');
+      }
+
+      console.log(`💰 Sending ${amountInOctas / 100000000} APT to ${recipientAddress}`);
+
+      // Build transfer transaction
+      const transaction = await this.aptos.transaction.build.simple({
+        sender: this.account.accountAddress,
+        data: {
+          function: '0x1::aptos_account::transfer',
+          functionArguments: [recipientAddress, amountInOctas],
+        },
+      });
+
+      // Sign and submit transaction
+      const committedTxn = await this.aptos.signAndSubmitTransaction({
+        signer: this.account,
+        transaction,
+      });
+
+      // Wait for transaction to be confirmed
+      await this.aptos.waitForTransaction({
+        transactionHash: committedTxn.hash,
+      });
+
+      console.log(`✅ Transfer successful. Transaction: ${committedTxn.hash}`);
+      return committedTxn.hash;
+    } catch (error) {
+      console.error('❌ Error sending APT:', error);
+      throw error;
+    }
+  }
+
 }
 
 module.exports = AptosService;

@@ -20,6 +20,7 @@ import { canLeaveGame } from "@/utils/connectivityChecker"
 import FullscreenToggle from "@/components/fullscreen-toggle"
 import ColoredPlayerName from "@/components/colored-player-name"
 import LobbySettingsDialog, { FullGameSettings, DEFAULT_GAME_SETTINGS } from "@/components/lobby-settings-dialog"
+import FaucetButton from "@/components/faucet-button"
 import { GameSettings } from "@/services/api"
 
 interface LobbyScreenProps {
@@ -33,7 +34,6 @@ interface LobbyScreenProps {
 }
 
 export default function LobbyScreen({ players, game, isConnected, onStartGame, playerAddress, onLeaveGame, refreshGame }: LobbyScreenProps) {
-  const [chatEnabled, setChatEnabled] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
   const [isPublic, setIsPublic] = useState(false)
   const [isTogglingVisibility, setIsTogglingVisibility] = useState(false)
@@ -375,6 +375,16 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
           </div>
         </Card>
 
+        {/* Faucet Button */}
+        <div className="flex justify-center">
+          <FaucetButton
+            walletAddress={playerAddress || null}
+            onSuccess={() => {
+              console.log('✅ Faucet claim successful!')
+            }}
+          />
+        </div>
+
         {/* Game Status */}
         <Card className="p-2 sm:p-3 lg:p-4 bg-card border-2 border-border text-center">
           <div className="space-y-1 sm:space-y-2">
@@ -459,16 +469,8 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
           </div>
         )}
 
-        {/* Chat Toggle, Fullscreen, Settings & Leave Game */}
+        {/* Fullscreen, Settings & Leave Game */}
         <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
-          <Button
-            onClick={() => setChatEnabled(!chatEnabled)}
-            variant="pixel"
-            size="pixel"
-            className="text-xs sm:text-sm"
-          >
-            {chatEnabled ? "💬 CHAT ENABLED" : "💬 ENABLE CHAT"}
-          </Button>
           <FullscreenToggle
             variant="button"
             className="text-xs sm:text-sm"

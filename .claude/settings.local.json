@@ -21,7 +21,8 @@
       "WebSearch",
       "Bash(git clone:*)",
       "WebFetch(domain:aptos.dev)",
-      "WebFetch(domain:medium.com)"
+      "WebFetch(domain:medium.com)",
+      "Bash(node scripts/check-faucet-setup.js:*)"
     ],
     "deny": [],
     "ask": []

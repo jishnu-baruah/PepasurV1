@@ -17,6 +17,7 @@ import { truncateAddress, formatAPT, calculateWinProbabilities } from "@/utils/w
 import { useWallet, type InputTransactionData } from "@aptos-labs/wallet-adapter-react"
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk"
 import { smoothSendClient } from "@/lib/smoothsend"
+import FaucetButton from "@/components/faucet-button"
 
 // Initialize Aptos client
 const config = new AptosConfig({
@@ -522,11 +523,31 @@ export default function PublicLobbiesScreen({ onJoinLobby, onBack, onCreateLobby
                       </span>
                     </div>
                     <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
-                      <span className="text-xs text-gray-400 font-press-start">YOUR BALANCE:</span>
-                      <span className={`ml-2 text-sm font-bold ${balance >= selectedLobby.stakeAmount ? 'text-green-400' : 'text-red-400'}`}>
-                        {balanceLoading ? '...' : `${formatAPT(balance)} APT`}
-                      </span>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-gray-400 font-press-start">YOUR BALANCE:</span>
+                        <span className={`text-sm font-bold ${balance >= selectedLobby.stakeAmount ? 'text-green-400' : 'text-red-400'}`}>
+                          {balanceLoading ? '...' : `${formatAPT(balance)} APT`}
+                        </span>
+                      </div>
+                      {/* Compact Faucet - Inline */}
+                      <div className="pt-2 border-t border-[#333333]/50">
+                        <div className="scale-75 origin-left -ml-2">
+                          <FaucetButton
+                            walletAddress={playerAddress || null}
+                            onSuccess={() => {
+                              console.log('✅ Faucet claim successful! Refreshing balance...')
+                              // Refresh balance after successful faucet claim
+                              if (account?.address) {
+                                aptos.getAccountAPTAmount({ accountAddress: account.address })
+                                  .then(amt => setBalance(amt))
+                                  .catch(err => console.error('Failed to refresh balance:', err))
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
+
                     <div className="p-2 bg-green-900/20 rounded border border-green-500/30">
                       <span className="text-xs font-press-start text-green-300">ASUR WINS:</span>
                       <span className="ml-2 text-sm font-bold text-green-400">+{calculateMaxEarnings(selectedLobby.stakeAmount, winProbs.mafiaWinPercent)} APT</span>
