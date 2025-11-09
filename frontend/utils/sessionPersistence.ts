@@ -9,18 +9,20 @@ export interface GameSession {
   roomCode: string;
   walletAddress: string;
   timestamp: number;
+  hasSeenRole?: boolean; // Track if player has seen role assignment
 }
 
 /**
  * Save current game session to localStorage
  */
-export function saveGameSession(gameId: string, roomCode: string, walletAddress: string): void {
+export function saveGameSession(gameId: string, roomCode: string, walletAddress: string, hasSeenRole?: boolean): void {
   try {
     const session: GameSession = {
       gameId,
       roomCode,
       walletAddress,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      hasSeenRole
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
     console.log('💾 Game session saved:', session);

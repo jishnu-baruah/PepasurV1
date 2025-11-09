@@ -2,8 +2,17 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
+export interface GameSettings {
+  nightPhaseDuration?: number
+  resolutionPhaseDuration?: number
+  taskPhaseDuration?: number
+  votingPhaseDuration?: number
+  maxTaskCount?: number
+}
+
 export interface Game {
   gameId: string
+  roomCode?: string
   creator: string
   players: string[]
   roles: Record<string, string>
@@ -22,6 +31,23 @@ export interface Game {
   winners: string[]
   roleCommit: string | null
   status: 'active' | 'completed'
+  settings?: GameSettings
+  isPublic?: boolean
+  stakingRequired?: boolean
+  timerReady?: boolean
+  votingResolved?: boolean
+  votingResult?: any
+  isGameOver?: boolean
+  onChainGameId?: string | number
+  nightResolution?: {
+    mafiaTarget: { address: string; name: string; id: string; role: string } | null
+    doctorTarget: { address: string; name: string; id: string; role: string } | null
+    detectiveTarget: { address: string; name: string; id: string; role: string } | null
+    investigationResult: string | null
+    killedPlayer: { address: string; name: string; id: string; role: string } | null
+    savedPlayer: { address: string; name: string; id: string; role: string } | null
+    investigationPlayer: { address: string; name: string; id: string; role: string } | null
+  }
   rewards?: {
     settlementTxHash: string
     distributions: Array<{
@@ -40,6 +66,7 @@ export interface CreateGameRequest {
   creatorAddress: string
   stakeAmount?: number
   minPlayers?: number
+  settings?: GameSettings
 }
 
 export interface JoinGameRequest {

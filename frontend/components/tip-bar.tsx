@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
 
 interface TipBarProps {
     tips: string[]
@@ -9,55 +8,51 @@ interface TipBarProps {
     className?: string
 }
 
-export default function TipBar({ tips, phase, className = "" }: TipBarProps) {
-    const [isExpanded, setIsExpanded] = useState(false)
+export default function TipBar({ tips, className = "" }: TipBarProps) {
+    const [showTooltip, setShowTooltip] = useState(false)
 
-    const phaseConfig = {
-        night: {
-            icon: "🌙",
-            title: "NIGHT PHASE TIPS",
-            color: "bg-purple-900/30 border-purple-500/50",
-            textColor: "text-purple-300"
-        },
-        voting: {
-            icon: "🗳️",
-            title: "VOTING TIPS",
-            color: "bg-orange-900/30 border-orange-500/50",
-            textColor: "text-orange-300"
-        }
-    }
-
-    const config = phaseConfig[phase]
+    // Add color highlighting to tips
+    const coloredTips = tips.map(tip => {
+        return tip
+            .replace(/<strong>/g, '<strong class="text-yellow-300 font-bold">')
+            .replace(/ASUR/g, '<span class="text-red-400">ASUR</span>')
+            .replace(/DEVA/g, '<span class="text-blue-400">DEVA</span>')
+            .replace(/RISHI/g, '<span class="text-purple-400">RISHI</span>')
+            .replace(/MANAV/g, '<span class="text-green-400">MANAV</span>')
+    })
 
     return (
-        <div className={`w-full max-w-4xl mx-auto ${className}`}>
-            <div className={`border-2 rounded-none ${config.color} backdrop-blur-sm`}>
-                {/* Header - Always visible */}
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className={`w-full p-3 flex items-center justify-between ${config.textColor} hover:bg-black/20 transition-colors`}
-                >
-                    <div className="flex items-center space-x-2">
-                        <span className="text-lg">{config.icon}</span>
-                        <span className="font-press-start text-xs">{config.title}</span>
-                    </div>
-                    <span className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
-                        ▼
-                    </span>
-                </button>
-
-                {/* Expandable content */}
-                {isExpanded && (
-                    <div className="border-t border-current/30 p-3 space-y-2">
-                        {tips.map((tip, index) => (
-                            <div key={index} className={`text-xs ${config.textColor} flex items-start space-x-2`}>
-                                <span className="text-yellow-400 font-bold">•</span>
-                                <span>{tip}</span>
-                            </div>
-                        ))}
-                    </div>
-                )}
+        <div className={`fixed top-16 right-4 z-30 ${className}`}>
+            {/* Help button with ? icon and text */}
+            <div
+                className="flex items-center gap-2 px-3 py-2 bg-black/60 hover:bg-black/80 border-2 border-white/30 whitespace-nowrap cursor-pointer transition-colors"
+                onMouseEnter={() => setShowTooltip(true)}
+                onMouseLeave={() => setShowTooltip(false)}
+            >
+                <span className="text-xl font-bold text-white">?</span>
+                <span className="font-press-start text-xs text-white">HOW TO PLAY</span>
             </div>
+
+            {/* Tooltip content - shown on hover */}
+            {showTooltip && (
+                <div className="absolute top-full right-0 mt-2 w-80 bg-black/95 border-2 border-white/30 backdrop-blur-sm">
+                    <div className="p-4 text-white">
+                        <div className="space-y-2">
+                            {coloredTips.map((tip, index) => (
+                                <div key={index}>
+                                    <div
+                                        className="text-xs leading-relaxed text-left"
+                                        dangerouslySetInnerHTML={{ __html: tip }}
+                                    />
+                                    {index < coloredTips.length - 1 && (
+                                        <div className="border-t border-white/20 mt-2" />
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

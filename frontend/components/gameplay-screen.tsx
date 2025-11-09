@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Player } from "@/hooks/useGame"
 import { Game, apiService } from "@/services/api"
 import FullscreenToggle from "@/components/fullscreen-toggle"
@@ -28,7 +29,7 @@ export default function GameplayScreen({ currentPlayer, players, game, submitNig
   const [lastShownElimination, setLastShownElimination] = useState<string | null>(null)
   const [lastShownDay, setLastShownDay] = useState<number>(0) // Track which day we showed elimination for
   const [announcementShown, setAnnouncementShown] = useState(false)
-  const [investigationResult, setInvestigationResult] = useState<{ player: string, role: string, color: string, emoji: string } | null>(null)
+  const [investigationResult, setInvestigationResult] = useState<{ player: string, role: string, color: string, emoji: string, avatar?: string } | null>(null)
   const [keyboardFocusIndex, setKeyboardFocusIndex] = useState<number>(0)
 
   // Check if current player is eliminated
@@ -65,7 +66,7 @@ export default function GameplayScreen({ currentPlayer, players, game, submitNig
 
       return () => clearInterval(interval)
     }
-  }, [game?.timeLeft, refreshGame])
+  }, [game?.timeLeft])
 
   // Signal backend that frontend is ready for timer
   useEffect(() => {
@@ -303,7 +304,8 @@ export default function GameplayScreen({ currentPlayer, players, game, submitNig
                     player: targetPlayer?.name || 'Unknown',
                     role: info.name,
                     color: info.color,
-                    emoji: info.emoji
+                    emoji: info.emoji,
+                    avatar: targetPlayer?.avatar
                   })
                 }
               } catch (err) {
@@ -416,20 +418,27 @@ export default function GameplayScreen({ currentPlayer, players, game, submitNig
         {!isConnected && (
           <div className="absolute top-4 right-4 text-xs text-yellow-400">⚠️ DISCONNECTED</div>
         )}
-        <div className="absolute top-4 left-4 flex gap-2 z-10">
-          <button
-            onClick={() => refreshGame()}
-            className="w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded flex items-center justify-center"
-            title="Refresh Game State"
-          >
-            🔄
-          </button>
-          <div className="w-8 h-8 bg-black/60 rounded flex items-center justify-center">
-            <FullscreenToggle variant="icon" className="text-white text-sm" />
+        {/* Full-width header with buttons */}
+        <div className="absolute top-0 left-0 right-0 w-full bg-black/60 border-b border-white/20 py-2 px-4 flex justify-between items-center z-50">
+          <div className="flex gap-2">
+            <button
+              onClick={() => refreshGame()}
+              className="w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded flex items-center justify-center"
+              title="Refresh Game State"
+            >
+              🔄
+            </button>
+            <div className="w-8 h-8 bg-black/60 rounded flex items-center justify-center border border-white/20">
+              <FullscreenToggle variant="icon" className="text-white text-sm" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+            <div className="text-xs text-gray-400 font-press-start">{isConnected ? 'CONNECTED' : 'DISCONNECTED'}</div>
           </div>
         </div>
 
-        <h1 className={`text-4xl md:text-5xl font-bold ${roleHeaderColor} pixel-text-3d-float-long`}>NIGHT PHASE</h1>
+        <h1 className={`text-4xl md:text-5xl font-bold ${roleHeaderColor} pixel-text-3d-float-long mt-12`}>NIGHT PHASE</h1>
         <div className="text-5xl md:text-7xl font-bold pixel-text-3d-red my-2">{timeLeft}</div>
         <div
           className={`w-full bg-black/50 border-2 p-3 text-lg md:text-xl ${selectedPlayer && !actionTaken ? 'border-yellow-400 text-yellow-400 animate-pulse' : 'border-gray-500 text-gray-300'
@@ -448,12 +457,11 @@ export default function GameplayScreen({ currentPlayer, players, game, submitNig
         <TipBar
           phase="night"
           tips={[
-            "ASUR: Choose a player to eliminate. Work with other ASURs if there are multiple.",
-            "DEVA: Save a player from elimination. You can save yourself or others.",
-            "RISHI: Investigate a player to learn their role. Use this information wisely.",
-            "MANAV: Observe and wait. Pay attention to who gets eliminated and saved.",
-            "Actions are final once confirmed. Choose carefully!",
-            "The timer shows how much time is left in this phase."
+            "Click a player to select, <strong>double-click to confirm</strong>.",
+            "ASUR: Eliminate a player",
+            "DEVA: Save a player (including yourself)",
+            "RISHI: Investigate a player's role",
+            "MANAV: Wait and observe"
           ]}
           className="mt-4"
         />
@@ -596,36 +604,43 @@ export default function GameplayScreen({ currentPlayer, players, game, submitNig
         )
       }
 
-      {/* Detective Investigation Result */}
-      {
-        investigationResult && currentPlayer.role === 'RISHI' && !isCurrentPlayerEliminated && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <Card className="w-full max-w-md p-6 bg-[#111111]/95 border-4 border-[#4444FF] rounded-none text-center space-y-4">
-              <div className="text-4xl">{investigationResult.emoji}</div>
-              <div className="text-xl font-bold font-press-start text-[#4444FF] pixel-text-3d-glow">
-                🔍 INVESTIGATION RESULT
-              </div>
-              <div className="text-lg font-press-start pixel-text-3d-white">
-                <span className="text-gray-300">{investigationResult.player}</span>
-                <br />
-                <span className="text-sm">is</span>
-                <br />
-                <span style={{ color: investigationResult.color }} className="text-2xl font-bold">
-                  {investigationResult.role}
-                </span>
-              </div>
-              <div className="pt-4 border-t border-[#2a2a2a]">
-                <button
-                  onClick={() => setInvestigationResult(null)}
-                  className="px-6 py-2 bg-[#4444FF] hover:bg-[#3333DD] text-white font-press-start text-sm rounded-none border-2 border-[#3333DD]"
-                >
-                  ✓ UNDERSTOOD
-                </button>
-              </div>
-            </Card>
-          </div>
-        )
-      }
+      {/* Detective Investigation Result - Minimal */}
+      {investigationResult && currentPlayer.role === 'RISHI' && !isCurrentPlayerEliminated && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setInvestigationResult(null)}>
+          <Card className="w-full max-w-md p-6 bg-card border-2 border-border text-center space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="text-sm font-press-start text-gray-400">INVESTIGATION</div>
+
+            {investigationResult.avatar && (
+              <img
+                src={investigationResult.avatar}
+                alt={investigationResult.player}
+                className="w-24 h-24 mx-auto object-cover border-2 border-border"
+                style={{ imageRendering: 'pixelated' }}
+              />
+            )}
+
+            <div className="text-xl font-press-start pixel-text-3d-white">
+              {investigationResult.player}
+            </div>
+
+            <div
+              style={{ color: investigationResult.color }}
+              className="text-2xl font-press-start"
+            >
+              {investigationResult.role}
+            </div>
+
+            <Button
+              onClick={() => setInvestigationResult(null)}
+              variant="pixel"
+              size="pixel"
+              className="w-full"
+            >
+              OK
+            </Button>
+          </Card>
+        </div>
+      )}
 
     </div >
   )

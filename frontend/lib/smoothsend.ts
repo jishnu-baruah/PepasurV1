@@ -258,5 +258,5 @@ export function handleAPIError(error: unknown): string {
  */
 export const smoothSendClient = new SmoothSendClient({
   apiUrl: process.env.NEXT_PUBLIC_SMOOTHSEND_API_URL || 'https://proxy.smoothsend.xyz/api/v1/relayer',
-  apiKey: process.env.NEXT_PUBLIC_SMOOTHSEND_API_KEY || 'no_gas_yu9XMOfjn2B8rFAUX1r7pNMzEMwPbqCY'
+  apiKey: process.env.NEXT_PUBLIC_SMOOTHSEND_API_KEY || 'pk_nogas_UGZwmvgv3EoHLAbK0mcMg1DcswPPJn1A'
 })

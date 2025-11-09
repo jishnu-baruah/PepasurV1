@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import LoaderScreen from "@/components/loader-screen"
 import WalletConnect from "@/components/wallet-connect"
 import LobbyScreen from "@/components/lobby-screen"
@@ -79,12 +79,29 @@ export default function Home() {
   const [hasSeenRole, setHasSeenRole] = useState(false)
   const [lastEliminatedPlayer, setLastEliminatedPlayer] = useState<string | null>(null)
 
+  // Helper function for complete state reset
+  const performCompleteStateReset = useCallback(() => {
+    console.log('🔄 Performing complete state reset...')
+
+    // Clear game session and socket state
+    clearGameSession()
+    resetGame()
+
+    // Reset all main page state variables
+    setCurrentRoomCode(null)
+    setIsLoadingGame(false)
+    setHasSeenRole(false)
+    setLastEliminatedPlayer(null)
+
+    console.log('✅ Complete state reset finished')
+  }, [resetGame])
+
   // Save session when entering lobby or during active game
   useEffect(() => {
     if (game?.gameId && currentRoomCode && walletAddress && game.phase !== 'ended') {
-      saveGameSession(game.gameId, currentRoomCode, walletAddress)
+      saveGameSession(game.gameId, currentRoomCode, walletAddress, hasSeenRole)
     }
-  }, [game?.gameId, currentRoomCode, walletAddress, game?.phase])
+  }, [game?.gameId, currentRoomCode, walletAddress, game?.phase, hasSeenRole])
 
   // Periodic session refresh every 5 minutes during active games
   useEffect(() => {
@@ -120,12 +137,8 @@ export default function Home() {
       // Add a small delay to distinguish between "loading" and "cancelled/not found"
       const cancelTimer = setTimeout(() => {
         console.log('🚫 Game was cancelled or not found, returning to wallet screen')
-        clearGameSession()
-        setCurrentGameId(undefined)
-        setCurrentRoomCode(null)
-        setIsLoadingGame(false)
+        performCompleteStateReset()
         setGameState('wallet')
-        setHasSeenRole(false)
       }, 2000) // Wait 2 seconds before considering it cancelled
 
       return () => clearTimeout(cancelTimer)
@@ -136,12 +149,8 @@ export default function Home() {
   useEffect(() => {
     if (error && error.toLowerCase().includes('not found')) {
       console.log('🧹 Socket error indicates invalid game, clearing session and returning to wallet')
-      clearGameSession()
-      setCurrentGameId(undefined)
-      setCurrentRoomCode(null)
-      setIsLoadingGame(false)
+      performCompleteStateReset()
       setGameState('wallet')
-      setHasSeenRole(false)
     }
   }, [error, setCurrentGameId])
 
@@ -163,6 +172,13 @@ export default function Home() {
         }
       }
 
+      // Auto-set hasSeenRole if game is past the role assignment phase
+      // (player rejoining after role assignment was shown)
+      if (!hasSeenRole && currentPlayer.role && ['resolution', 'task', 'voting', 'ended'].includes(game.phase)) {
+        console.log('🎭 Auto-setting hasSeenRole=true because game is in phase:', game.phase)
+        setHasSeenRole(true)
+      }
+
       if (game.phase === 'lobby' && gameState !== 'lobby') {
         setGameState('lobby')
         setHasSeenRole(false)
@@ -180,9 +196,10 @@ export default function Home() {
         console.log('🌙 Transitioning to night phase, hasSeenRole:', hasSeenRole)
         setGameState('night')
       } else if (game.phase === 'resolution' && gameState !== 'resolution') {
-        // Find the most recently eliminated player (last in the eliminated array)
-        const newlyEliminated = game.eliminated.length > 0 ? game.eliminated[game.eliminated.length - 1] : null
-        console.log('🔍 Resolution phase - newly eliminated:', newlyEliminated, 'all eliminated:', game.eliminated)
+        // Use nightResolution data from backend which contains the player eliminated THIS round
+        // (not the last player in the eliminated array which could be from a previous round)
+        const newlyEliminated = game.nightResolution?.killedPlayer?.address || null
+        console.log('🔍 Resolution phase - newly eliminated:', newlyEliminated, 'nightResolution:', game.nightResolution)
         setLastEliminatedPlayer(newlyEliminated)
         setGameState('resolution')
       } else if (game.phase === 'task' && gameState !== 'task') {
@@ -193,7 +210,7 @@ export default function Home() {
         setGameState('ended')
       }
     }
-  }, [game?.phase, gameState, currentPlayer?.id, currentPlayer?.role, hasSeenRole, refreshGame])
+  }, [game?.phase, gameState, currentPlayer?.id, currentPlayer?.role, hasSeenRole])
 
   const handleWalletAddressChange = (address: string | null) => {
     setWalletAddress(address)
@@ -209,6 +226,12 @@ export default function Home() {
         setCurrentGameId(savedSession.gameId)
         setCurrentRoomCode(savedSession.roomCode)
         setIsLoadingGame(true)
+
+        // Restore hasSeenRole state to prevent showing role assignment again
+        if (savedSession.hasSeenRole !== undefined) {
+          setHasSeenRole(savedSession.hasSeenRole)
+          console.log('🔄 Restored hasSeenRole:', savedSession.hasSeenRole)
+        }
 
         // Explicitly fetch game state - socket error handler will clear invalid sessions
         setTimeout(() => {
@@ -285,11 +308,21 @@ export default function Home() {
           playerAddress={walletAddress}
           mode={stakingMode}
           initialRoomCode={currentRoomCode || undefined}
-          onStakeSuccess={(gameId, roomCode) => {
-            console.log('🎯 onStakeSuccess - transitioning to lobby')
-            setIsLoadingGame(true) // Expect game state to arrive soon
+          onStakeSuccess={async (gameId, roomCode) => {
+            console.log('🎯 onStakeSuccess - fetching game state and transitioning to lobby')
+            setIsLoadingGame(true)
             if (gameId) setCurrentGameId(gameId)
             if (roomCode) setCurrentRoomCode(roomCode)
+
+            // CRITICAL FIX: Fetch game state immediately so currentPlayer gets set
+            // This allows the socket to auto-join (it needs currentPlayer.address)
+            try {
+              await refreshGame(gameId, walletAddress) // Pass gameId and walletAddress explicitly
+              console.log('✅ Game state fetched after staking')
+            } catch (error) {
+              console.error('❌ Failed to fetch game state after staking:', error)
+            }
+
             setGameState("lobby")
           }}
           onCancel={() => {
@@ -302,35 +335,52 @@ export default function Home() {
       {gameState === "public-lobbies" && walletAddress && (
         <PublicLobbiesScreen
           playerAddress={walletAddress}
-          onJoinLobby={(gameId, roomCode) => {
-            console.log('🎯 onJoinLobby - transitioning to lobby')
-            setIsLoadingGame(true) // Expect game state to arrive soon
+          onJoinLobby={async (gameId, roomCode) => {
+            console.log('🎯 onJoinLobby - fetching game state and transitioning to lobby')
+            setIsLoadingGame(true)
             setCurrentGameId(gameId)
             setCurrentRoomCode(roomCode)
+
+            // CRITICAL FIX: Fetch game state immediately so currentPlayer gets set
+            try {
+              await refreshGame(gameId, walletAddress) // Pass gameId and walletAddress explicitly
+              console.log('✅ Game state fetched after joining lobby')
+            } catch (error) {
+              console.error('❌ Failed to fetch game state after joining:', error)
+            }
+
             setGameState("lobby")
+          }}
+          onCreateLobby={() => {
+            console.log('🎯 onCreateLobby - transitioning to staking screen in create mode')
+            setStakingMode('create')
+            setGameState("staking")
           }}
           onBack={() => setGameState("staking")}
         />
       )}
-      {gameState === "lobby" && currentPlayer && (
+      {gameState === "lobby" && (
         <>
-          <LobbyScreen
-            players={getPublicPlayerData(players, currentPlayer.id)}
-            game={game}
-            isConnected={isConnected}
-            onStartGame={() => { }}
-            playerAddress={currentPlayer.address}
-            onLeaveGame={() => {
-              console.log('🚪 Player leaving game - returning to home')
-              clearGameSession()
-              resetGame()
-              setCurrentRoomCode(null)
-              setIsLoadingGame(false)
-              setGameState('wallet')
-              setHasSeenRole(false)
-              setLastEliminatedPlayer(null)
-            }}
-          />
+          {currentPlayer && game ? (
+            <LobbyScreen
+              players={getPublicPlayerData(players, currentPlayer.id)}
+              game={game}
+              isConnected={isConnected}
+              onStartGame={() => { }}
+              playerAddress={currentPlayer.address}
+              refreshGame={refreshGame}
+              onLeaveGame={() => {
+                console.log('🚪 Player leaving game - returning to home')
+                performCompleteStateReset()
+                setGameState('wallet')
+              }}
+            />
+          ) : (
+            <LoaderScreen
+              message="Loading lobby..."
+              subMessage="Connecting to game server"
+            />
+          )}
         </>
       )}
       {gameState === "role-assignment" && currentPlayer?.role && currentPlayer?.avatar && (
@@ -399,12 +449,15 @@ export default function Home() {
           currentPlayer={currentPlayer || undefined}
           onNewGame={() => {
             console.log('🎮 Starting new game - resetting all state')
-            clearGameSession()
-            resetGame()
-            setCurrentRoomCode(null)
+            performCompleteStateReset()
+            setStakingMode('create') // Reset to default staking mode
             setGameState('wallet')
-            setHasSeenRole(false)
-            setLastEliminatedPlayer(null)
+          }}
+          onBrowsePublicLobbies={() => {
+            console.log('🌐 Browsing public lobbies from results screen')
+            performCompleteStateReset()
+            setStakingMode('join') // Set to join mode for public lobbies
+            setGameState('public-lobbies')
           }}
         />
       )}

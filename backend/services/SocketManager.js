@@ -189,12 +189,13 @@ class SocketManager {
       timestamp: Date.now()
     });
 
+    // If game is complete due to task win condition, emit game state update
     if (result.gameComplete) {
-      this.io.to(`game-${gameId}`).emit('task_result', {
-        completed: true,
-        winners: result.winners,
-        timestamp: Date.now()
-      });
+      console.log(`🎯 Task submission resulted in game completion`);
+      // The endGame method will be called by GameManager, just emit state update
+      setTimeout(() => {
+        this.emitGameStateUpdate(gameId);
+      }, 1500); // Slight delay to ensure endGame has processed
     }
   }
 
@@ -217,7 +218,7 @@ class SocketManager {
   }
 
   handleChatMessage(socket, data) {
-    const { gameId, message } = data;
+    const { gameId, message, playerAddress } = data;
     const game = this.gameManager.getGame(gameId);
 
     if (!game) {
@@ -225,12 +226,35 @@ class SocketManager {
       return;
     }
 
+    // Get player info for the message
+    const playerIndex = game.players.indexOf(playerAddress);
+    const playerInfo = playerIndex >= 0 ? this.getPlayerInfo(playerIndex) : { alias: 'Unknown', avatar: null };
+
     this.io.to(`game-${gameId}`).emit('chat_message', {
       gameId,
-      playerAddress: data.playerAddress,
+      playerAddress,
+      playerName: playerInfo.alias,
+      playerAlias: playerInfo.alias,
+      avatarUrl: playerInfo.avatar,
       message,
       timestamp: Date.now()
     });
+  }
+
+  // Helper: Get player info (alias and avatar) based on player index
+  getPlayerInfo(playerIndex) {
+    const colorAliases = ['0xRed', '0xBlue', '0xPurple', '0xYellow'];
+    const avatarUrls = [
+      'https://ik.imagekit.io/3rdfd9oed/pepAsur%20Assets/redShirt.png?updatedAt=1761611647221',
+      'https://ik.imagekit.io/3rdfd9oed/pepAsur%20Assets/blueShirt.png?updatedAt=1758922659560',
+      'https://ik.imagekit.io/3rdfd9oed/pepAsur%20Assets/purpleShirt.png?updatedAt=1761611647804',
+      'https://ik.imagekit.io/3rdfd9oed/pepAsur%20Assets/yellowShirt.png?updatedAt=1761611647228'
+    ];
+
+    return {
+      alias: colorAliases[playerIndex % colorAliases.length],
+      avatar: avatarUrls[playerIndex % avatarUrls.length]
+    };
   }
 
   // Emit chat message from server (e.g., task announcements, system messages)
@@ -244,6 +268,93 @@ class SocketManager {
     } catch (error) {
       console.error(`❌ Error emitting chat message for game ${gameId}:`, error);
     }
+  }
+
+  // Generate witty task announcement messages
+  getWittyMessage(playerAlias, isSuccess) {
+    console.log(`🎲 getWittyMessage called with:`, { playerAlias, isSuccess });
+
+    const successMessages = [
+      `${playerAlias} just CRUSHED that task! 🔥 Big brain energy detected!`,
+      `${playerAlias} nailed it! Either genius or lucky... we'll never know 🎯`,
+      `${playerAlias} succeeded! Plot twist: Are they too good to be ASUR? 🤔`,
+      `${playerAlias} completed the task! Trust issues intensifying... 👀`,
+      `${playerAlias} with the W! Quick, someone check if they're cheating 😏`,
+      `${playerAlias} looking sus with that perfect score... or just skilled? 🎭`,
+      `${playerAlias} making it look easy! ASUR would want us to trust them... 🐍`,
+      `${playerAlias} succeeded! Either MANAV proving loyalty or ASUR building cover 🎪`,
+      `${playerAlias} absolutely DOMINATED! Real MVP or master manipulator? 👑`,
+      `${playerAlias} came through! Quick, everyone pretend you trust them 🃏`,
+      `${playerAlias} with the flex! Filing this under 'sus but respected' 💪`,
+      `${playerAlias} proving something... but WHAT exactly? 🔍`,
+      `${playerAlias} succeeded! ASUR could never... right? RIGHT?! 😰`,
+      `${playerAlias} cooked! Everyone's favorite player until voting starts 🔪`,
+      `${playerAlias} delivered! Now watch everyone suddenly trust them 🎭`
+    ];
+
+    const failureMessages = [
+      `${playerAlias} FAILED hard! Smooth brain moment or strategic throw? 💀`,
+      `${playerAlias} fumbled the bag! ASUR sabotage or just skill issue? 🤡`,
+      `${playerAlias} with the L! Either terrible or playing 4D chess 🧠`,
+      `${playerAlias} flopped! This is either sad or highly suspicious 🚨`,
+      `${playerAlias} bricked it! Quick, someone start the roast session 🔥`,
+      `${playerAlias} failed spectacularly! ASUR slip-up or unfortunate MANAV? 🎪`,
+      `${playerAlias} just proved something... we're just not sure what 💩`,
+      `${playerAlias} with the fail! Plot armor: GONE. Trust: DESTROYED 📉`,
+      `${playerAlias} choked! Either genuinely bad or ASUR getting exposed 👁️`,
+      `${playerAlias} failed! Everyone suddenly remembering who to vote... 🗳️`,
+      `${playerAlias} threw! Strategic int or actual int? You decide 🎲`,
+      `${playerAlias} tanked! Red flags everywhere or just unlucky? 🚩`,
+      `${playerAlias} whiffed! Time to write your defense speech 📝`,
+      `${playerAlias} failed! Congratulations, you played yourself 🏆`,
+      `${playerAlias} with the fail! Trust levels: ERROR 404 NOT FOUND ⚠️`,
+      `${playerAlias} absolutely botched it! ASUR would be proud... too proud? 😈`
+    ];
+
+    const messages = isSuccess ? successMessages : failureMessages;
+    const selectedMessage = messages[Math.floor(Math.random() * messages.length)];
+
+    console.log(`✨ Generated witty message:`, selectedMessage);
+    return selectedMessage;
+  }
+
+  // Send task announcement (success or failure)
+  sendTaskAnnouncement(gameId, playerAddress, isSuccess, game) {
+    console.log(`📢 sendTaskAnnouncement called:`, {
+      gameId,
+      playerAddress,
+      isSuccess,
+      totalPlayers: game.players.length,
+      players: game.players
+    });
+
+    const playerIndex = game.players.indexOf(playerAddress);
+    if (playerIndex === -1) {
+      console.error(`❌ Player ${playerAddress} not found in game players:`, game.players);
+      return;
+    }
+
+    const playerInfo = this.getPlayerInfo(playerIndex);
+    console.log(`👤 Player info for index ${playerIndex}:`, playerInfo);
+
+    // Generate witty message
+    const wittyMessage = this.getWittyMessage(playerInfo.alias, isSuccess);
+
+    const messageData = {
+      playerAddress: 'SYSTEM',
+      playerName: 'SYSTEM',
+      message: wittyMessage,
+      type: isSuccess ? 'task_success' : 'task_failure',
+      taskPlayerAddress: playerAddress,
+      avatarUrl: playerInfo.avatar,
+      playerAlias: playerInfo.alias,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`📤 Sending task announcement to chat:`, messageData);
+    this.emitChatMessage(gameId, messageData);
+
+    console.log(`✅ Task announcement sent: ${playerInfo.alias} ${isSuccess ? 'succeeded' : 'failed'}`);
   }
 
   // Broadcast game state updates

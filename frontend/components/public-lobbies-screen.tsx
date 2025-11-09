@@ -42,15 +42,27 @@ interface PublicLobby {
 interface PublicLobbiesScreenProps {
   onJoinLobby: (gameId: string, roomCode: string) => void
   onBack: () => void
+  onCreateLobby?: () => void
   playerAddress: string
 }
 
-export default function PublicLobbiesScreen({ onJoinLobby, onBack, playerAddress }: PublicLobbiesScreenProps) {
+export default function PublicLobbiesScreen({ onJoinLobby, onBack, onCreateLobby, playerAddress }: PublicLobbiesScreenProps) {
   const [lobbies, setLobbies] = useState<PublicLobby[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState('')
   const [sortBy, setSortBy] = useState<'newest' | 'stake' | 'players'>('newest')
+
+  // Helper function to recalculate win probabilities on render (ensures fresh data)
+  const getWinProbabilities = (lobby: PublicLobby) => {
+    return calculateWinProbabilities(lobby.stakeAmount, lobby.minPlayers, lobby.minPlayers)
+  }
+
+  // Helper function to calculate max possible earnings in APT
+  const calculateMaxEarnings = (stakeAmount: number, winPercent: number): string => {
+    const earningOctas = stakeAmount * (winPercent / 100)
+    return formatAPT(earningOctas)
+  }
 
   // Staking modal state
   const [showStakingModal, setShowStakingModal] = useState(false)
@@ -77,9 +89,9 @@ export default function PublicLobbiesScreen({ onJoinLobby, onBack, playerAddress
       const data = await response.json()
 
       if (data.success) {
-        // Calculate win percentages for each lobby
+        // Calculate win percentages for each lobby based on minPlayers (when game starts)
         const lobbiesWithPercentages = data.lobbies.map((lobby: PublicLobby) => {
-          const winProbs = calculateWinProbabilities(lobby.stakeAmount, lobby.playerCount, lobby.minPlayers)
+          const winProbs = calculateWinProbabilities(lobby.stakeAmount, lobby.minPlayers, lobby.minPlayers)
           return {
             ...lobby,
             mafiaWinPercent: winProbs.mafiaWinPercent,
@@ -331,14 +343,26 @@ export default function PublicLobbiesScreen({ onJoinLobby, onBack, playerAddress
               <div className="text-xs text-gray-400 animate-pulse">🔄</div>
             )}
           </div>
-          <Button
-            onClick={onBack}
-            variant="pixel"
-            size="pixel"
-            className="text-xs sm:text-sm"
-          >
-            ← BACK
-          </Button>
+          <div className="flex flex-col sm:flex-row items-center gap-2">
+            {onCreateLobby && (
+              <Button
+                onClick={onCreateLobby}
+                variant="pixel"
+                size="pixel"
+                className="text-xs sm:text-sm bg-green-600 hover:bg-green-700 border-2 border-green-400 hover:border-green-300 font-press-start transition-all shadow-lg"
+              >
+                ➕ CREATE LOBBY
+              </Button>
+            )}
+            <Button
+              onClick={onBack}
+              variant="pixel"
+              size="pixel"
+              className="text-xs sm:text-sm"
+            >
+              ← BACK
+            </Button>
+          </div>
         </div>
 
         {/* Sort Options */}
@@ -390,61 +414,76 @@ export default function PublicLobbiesScreen({ onJoinLobby, onBack, playerAddress
             <div className="text-lg font-press-start pixel-text-3d-white mb-2">
               NO PUBLIC LOBBIES
             </div>
-            <div className="text-sm text-gray-400">
+            <div className="text-sm text-gray-400 mb-4">
               Be the first to create a public lobby!
             </div>
+            {onCreateLobby && (
+              <Button
+                onClick={onCreateLobby}
+                variant="pixel"
+                size="pixelLarge"
+                className="bg-green-600 hover:bg-green-700 border-2 border-green-400 hover:border-green-300 font-press-start"
+              >
+                ➕ CREATE YOUR LOBBY
+              </Button>
+            )}
           </Card>
         ) : (
           <div className="flex flex-col gap-3 sm:gap-4">
-            {sortedLobbies.map((lobby) => (
-              <Card
-                key={lobby.gameId}
-                className="p-3 sm:p-4 bg-card border-2 border-border hover:border-primary/50 transition-all"
-              >
-                <div className="flex gap-4 items-center">
-                  {/* Left (Data) Column */}
-                  <div className="flex-grow grid grid-cols-3 gap-2">
-                    <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
-                      <span className="text-xs text-gray-400 font-press-start">ROOM CODE:</span>
-                      <span className="ml-2 text-sm font-bold font-press-start pixel-text-3d-white">{lobby.roomCode}</span>
-                    </div>
-                    <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
-                      <span className="text-xs text-gray-400 font-press-start">STAKE:</span>
-                      <span className="ml-2 text-sm font-bold text-yellow-400">{formatAPT(lobby.stakeAmount)} APT</span>
-                    </div>
-                    <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
-                      <span className="text-xs text-gray-400 font-press-start">PLAYERS:</span>
-                      <span className={`ml-2 text-sm font-bold ${lobby.playerCount >= lobby.minPlayers ? 'text-green-400' : 'text-yellow-400'}`}>{lobby.playerCount}/{lobby.minPlayers}</span>
-                    </div>
-                    <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
-                      <span className="text-xs text-gray-400 font-press-start">CREATOR:</span>
-                      <span className="ml-2 text-sm text-blue-400">{lobby.creatorName || truncateAddress(lobby.creator)}</span>
-                    </div>
-                    <div className="p-2 bg-green-900/20 rounded border border-green-500/30">
-                      <span className="text-xs font-press-start text-green-300">MAFIA WINS:</span>
-                      <span className="ml-2 text-sm font-bold text-green-400">+{lobby.mafiaWinPercent}%</span>
-                    </div>
-                    <div className="p-2 bg-yellow-900/20 rounded border border-yellow-500/30">
-                      <span className="text-xs font-press-start text-yellow-300">OTHERS WIN:</span>
-                      <span className="ml-2 text-sm font-bold text-yellow-400">+{lobby.nonMafiaWinPercent}%</span>
-                    </div>
-                  </div>
+            {sortedLobbies.map((lobby) => {
+              // Recalculate win probabilities on render for accurate display
+              const winProbs = getWinProbabilities(lobby)
 
-                  {/* Right (Join) Column */}
-                  <div className="flex items-center">
-                    <Button
-                      onClick={() => handleJoinClick(lobby)}
-                      variant="pixel"
-                      size="pixelXl"
-                      className="h-full"
-                      disabled={lobby.playerCount >= lobby.maxPlayers}
-                    >
-                      {lobby.playerCount >= lobby.maxPlayers ? '🔒 FULL' : '🎮 JOIN'}
-                    </Button>
+              return (
+                <Card
+                  key={lobby.gameId}
+                  className="p-3 sm:p-4 bg-card border-2 border-border hover:border-primary/50 transition-all"
+                >
+                  <div className="flex gap-4 items-center">
+                    {/* Left (Data) Column */}
+                    <div className="flex-grow grid grid-cols-3 gap-2">
+                      <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
+                        <span className="text-xs text-gray-400 font-press-start">ROOM CODE:</span>
+                        <span className="ml-2 text-sm font-bold font-press-start pixel-text-3d-white">{lobby.roomCode}</span>
+                      </div>
+                      <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
+                        <span className="text-xs text-gray-400 font-press-start">STAKE:</span>
+                        <span className="ml-2 text-sm font-bold text-yellow-400">{formatAPT(lobby.stakeAmount)} APT</span>
+                      </div>
+                      <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
+                        <span className="text-xs text-gray-400 font-press-start">PLAYERS:</span>
+                        <span className={`ml-2 text-sm font-bold ${lobby.playerCount >= lobby.minPlayers ? 'text-green-400' : 'text-yellow-400'}`}>{lobby.playerCount}/{lobby.minPlayers}</span>
+                      </div>
+                      <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
+                        <span className="text-xs text-gray-400 font-press-start">CREATOR:</span>
+                        <span className="ml-2 text-sm text-blue-400">{lobby.creatorName || truncateAddress(lobby.creator)}</span>
+                      </div>
+                      <div className="p-2 bg-green-900/20 rounded border border-green-500/30">
+                        <span className="text-xs font-press-start text-green-300">ASUR WINS:</span>
+                        <span className="ml-2 text-sm font-bold text-green-400">+{calculateMaxEarnings(lobby.stakeAmount, winProbs.mafiaWinPercent)} APT</span>
+                      </div>
+                      <div className="p-2 bg-yellow-900/20 rounded border border-yellow-500/30">
+                        <span className="text-xs font-press-start text-yellow-300">NON-ASUR WIN:</span>
+                        <span className="ml-2 text-sm font-bold text-yellow-400">+{calculateMaxEarnings(lobby.stakeAmount, winProbs.nonMafiaWinPercent)} APT</span>
+                      </div>
+                    </div>
+
+                    {/* Right (Join) Column */}
+                    <div className="flex items-center">
+                      <Button
+                        onClick={() => handleJoinClick(lobby)}
+                        variant="pixel"
+                        size="pixelXl"
+                        className="h-full"
+                        disabled={lobby.playerCount >= lobby.maxPlayers}
+                      >
+                        {lobby.playerCount >= lobby.maxPlayers ? '🔒 FULL' : '🎮 JOIN'}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              )
+            })}
           </div>
         )}
 
@@ -463,64 +502,69 @@ export default function PublicLobbiesScreen({ onJoinLobby, onBack, playerAddress
             </DialogTitle>
           </DialogHeader>
           <div className="text-center space-y-3 pt-4">
-            {selectedLobby && (
-              <>
-                <div className="space-y-2">
-                  <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
-                    <span className="text-xs text-gray-400 font-press-start">ROOM CODE:</span>
-                    <span className="ml-2 text-sm font-bold font-press-start pixel-text-3d-white">
-                      {selectedLobby.roomCode}
-                    </span>
-                  </div>
-                  <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
-                    <span className="text-xs text-gray-400 font-press-start">STAKE REQUIRED:</span>
-                    <span className="ml-2 text-sm font-bold text-yellow-400">
-                      {formatAPT(selectedLobby.stakeAmount)} APT
-                    </span>
-                  </div>
-                  <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
-                    <span className="text-xs text-gray-400 font-press-start">YOUR BALANCE:</span>
-                    <span className={`ml-2 text-sm font-bold ${balance >= selectedLobby.stakeAmount ? 'text-green-400' : 'text-red-400'}`}>
-                      {balanceLoading ? '...' : `${formatAPT(balance)} APT`}
-                    </span>
-                  </div>
-                  <div className="p-2 bg-green-900/20 rounded border border-green-500/30">
-                    <span className="text-xs font-press-start text-green-300">MAFIA WINS:</span>
-                    <span className="ml-2 text-sm font-bold text-green-400">+{selectedLobby.mafiaWinPercent}%</span>
-                  </div>
-                  <div className="p-2 bg-yellow-900/20 rounded border border-yellow-500/30">
-                    <span className="text-xs font-press-start text-yellow-300">OTHERS WIN:</span>
-                    <span className="ml-2 text-sm font-bold text-yellow-400">+{selectedLobby.nonMafiaWinPercent}%</span>
-                  </div>
+            {selectedLobby && (() => {
+              // Recalculate win probabilities on render for accurate display
+              const winProbs = getWinProbabilities(selectedLobby)
 
-                  {/* Gasless Mode Toggle */}
-                  <div className="p-3 bg-[#1a1a1a]/50 rounded border border-[#333333]">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-xs font-press-start text-gray-300">GAS FEES</div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {gaslessMode ? '✨ FREE - No gas fees!' : '⛽ Pay small gas fee'}
+              return (
+                <>
+                  <div className="space-y-2">
+                    <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
+                      <span className="text-xs text-gray-400 font-press-start">ROOM CODE:</span>
+                      <span className="ml-2 text-sm font-bold font-press-start pixel-text-3d-white">
+                        {selectedLobby.roomCode}
+                      </span>
+                    </div>
+                    <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
+                      <span className="text-xs text-gray-400 font-press-start">STAKE REQUIRED:</span>
+                      <span className="ml-2 text-sm font-bold text-yellow-400">
+                        {formatAPT(selectedLobby.stakeAmount)} APT
+                      </span>
+                    </div>
+                    <div className="p-2 bg-[#1a1a1a]/50 rounded border border-[#333333]">
+                      <span className="text-xs text-gray-400 font-press-start">YOUR BALANCE:</span>
+                      <span className={`ml-2 text-sm font-bold ${balance >= selectedLobby.stakeAmount ? 'text-green-400' : 'text-red-400'}`}>
+                        {balanceLoading ? '...' : `${formatAPT(balance)} APT`}
+                      </span>
+                    </div>
+                    <div className="p-2 bg-green-900/20 rounded border border-green-500/30">
+                      <span className="text-xs font-press-start text-green-300">ASUR WINS:</span>
+                      <span className="ml-2 text-sm font-bold text-green-400">+{calculateMaxEarnings(selectedLobby.stakeAmount, winProbs.mafiaWinPercent)} APT</span>
+                    </div>
+                    <div className="p-2 bg-yellow-900/20 rounded border border-yellow-500/30">
+                      <span className="text-xs font-press-start text-yellow-300">NON-ASUR WIN:</span>
+                      <span className="ml-2 text-sm font-bold text-yellow-400">+{calculateMaxEarnings(selectedLobby.stakeAmount, winProbs.nonMafiaWinPercent)} APT</span>
+                    </div>
+
+                    {/* Gasless Mode Toggle */}
+                    <div className="p-3 bg-[#1a1a1a]/50 rounded border border-[#333333]">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-xs font-press-start text-gray-300">GAS FEES</div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {gaslessMode ? '✨ FREE - No gas fees!' : '⛽ Pay small gas fee'}
+                          </div>
                         </div>
+                        <Button
+                          onClick={() => setGaslessMode(!gaslessMode)}
+                          variant={gaslessMode ? 'pixel' : 'outline'}
+                          size="sm"
+                          className="text-xs"
+                        >
+                          {gaslessMode ? '✨ GASLESS' : '⛽ NORMAL'}
+                        </Button>
                       </div>
-                      <Button
-                        onClick={() => setGaslessMode(!gaslessMode)}
-                        variant={gaslessMode ? 'pixel' : 'outline'}
-                        size="sm"
-                        className="text-xs"
-                      >
-                        {gaslessMode ? '✨ GASLESS' : '⛽ NORMAL'}
-                      </Button>
                     </div>
                   </div>
-                </div>
 
-                {stakingError && (
-                  <div className="text-sm text-red-400 font-press-start">
-                    ❌ {stakingError}
-                  </div>
-                )}
-              </>
-            )}
+                  {stakingError && (
+                    <div className="text-sm text-red-400 font-press-start">
+                      ❌ {stakingError}
+                    </div>
+                  )}
+                </>
+              )
+            })()}
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button

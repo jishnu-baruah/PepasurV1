@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback, memo } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Game } from "@/services/api"
@@ -13,7 +13,7 @@ interface TaskComponentProps {
   showHeader?: boolean // Add prop to control header display
 }
 
-export default function TaskComponent({ gameId, currentPlayerAddress, game, submitTaskAnswer, showHeader = true }: TaskComponentProps) {
+function TaskComponent({ gameId, currentPlayerAddress, game, submitTaskAnswer, showHeader = true }: TaskComponentProps) {
   const [answer, setAnswer] = useState("")
   const [submitted, setSubmitted] = useState(false)
   const [result, setResult] = useState<"correct" | "incorrect" | null>(null)
@@ -24,15 +24,23 @@ export default function TaskComponent({ gameId, currentPlayerAddress, game, subm
   // Get timeLeft from game prop
   const timeLeft = game?.timeLeft || 0
 
-  // Check if player already submitted
-  useEffect(() => {
-    if (game?.task?.submissions?.[currentPlayerAddress]) {
-      setSubmitted(true)
-      setAnswer(game.task.submissions[currentPlayerAddress])
-    }
+  // Check if player already submitted (memoized to prevent re-renders)
+  const hasSubmitted = useMemo(() => {
+    return Boolean(game?.task?.submissions?.[currentPlayerAddress])
   }, [game?.task?.submissions, currentPlayerAddress])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const submittedAnswer = useMemo(() => {
+    return game?.task?.submissions?.[currentPlayerAddress] || ""
+  }, [game?.task?.submissions, currentPlayerAddress])
+
+  useEffect(() => {
+    if (hasSubmitted && submittedAnswer) {
+      setSubmitted(true)
+      setAnswer(submittedAnswer)
+    }
+  }, [hasSubmitted, submittedAnswer])
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     if (!answer.trim() || submitted) return
 
@@ -43,7 +51,7 @@ export default function TaskComponent({ gameId, currentPlayerAddress, game, subm
     } catch (error) {
       console.error('Failed to submit task answer:', error)
     }
-  }
+  }, [answer, submitted, submitTaskAnswer])
 
   // Handle memory tasks reveal/show/input phases
   const handleRevealMemory = () => {
@@ -285,3 +293,6 @@ export default function TaskComponent({ gameId, currentPlayerAddress, game, subm
 
 
 
+
+// Memoize the component to prevent unnecessary re-renders
+export default memo(TaskComponent)

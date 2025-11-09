@@ -14,6 +14,7 @@ interface GameResultsScreenProps {
   players: Player[]
   currentPlayer?: Player
   onNewGame?: () => void
+  onBrowsePublicLobbies?: () => void
 }
 
 const PlayerResultRow = ({ player, isWinner, isEliminated, reward, game }: {
@@ -98,7 +99,7 @@ const PlayerResultRow = ({ player, isWinner, isEliminated, reward, game }: {
   );
 };
 
-export default function GameResultsScreen({ game, players, currentPlayer, onNewGame }: GameResultsScreenProps) {
+export default function GameResultsScreen({ game, players, currentPlayer, onNewGame, onBrowsePublicLobbies }: GameResultsScreenProps) {
   const [showResults, setShowResults] = useState(false)
 
   // Show results after a brief delay
@@ -260,18 +261,19 @@ export default function GameResultsScreen({ game, players, currentPlayer, onNewG
             {onNewGame && (
               <Button
                 onClick={onNewGame}
-                className="px-4 sm:px-6 lg:px-8 py-2 sm:py-3 text-sm sm:text-base lg:text-lg bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg"
+                className="px-4 sm:px-6 lg:px-8 py-2 sm:py-3 text-sm sm:text-base lg:text-lg bg-blue-600 hover:bg-blue-700 text-white font-press-start rounded-none shadow-lg border-2 border-blue-400 hover:border-blue-300 transition-all"
               >
-                🎮 Start New Game
+                🎮 NEW GAME
               </Button>
             )}
-            <Button
-              onClick={() => window.location.reload()}
-              variant="outline"
-              className="px-4 sm:px-6 lg:px-8 py-2 sm:py-3 text-sm sm:text-base lg:text-lg border-white/50 text-white hover:bg-white/10 font-bold rounded-lg shadow-lg"
-            >
-              🔄 Refresh Page
-            </Button>
+            {onBrowsePublicLobbies && (
+              <Button
+                onClick={onBrowsePublicLobbies}
+                className="px-4 sm:px-6 lg:px-8 py-2 sm:py-3 text-sm sm:text-base lg:text-lg bg-green-600 hover:bg-green-700 text-white font-press-start rounded-none shadow-lg border-2 border-green-400 hover:border-green-300 transition-all"
+              >
+                🌐 PUBLIC LOBBIES
+              </Button>
+            )}
           </div>
         </div>
       </Card>

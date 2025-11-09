@@ -6,7 +6,7 @@ module.exports = (gameManager, aptosService) => {
   // Create a new game
   router.post('/create', async (req, res) => {
     try {
-      const { creatorAddress, stakeAmount, minPlayers, isPublic } = req.body;
+      const { creatorAddress, stakeAmount, minPlayers, isPublic, settings } = req.body;
 
       if (!creatorAddress) {
         return res.status(400).json({ error: 'Creator address is required' });
@@ -17,9 +17,13 @@ module.exports = (gameManager, aptosService) => {
         console.log(`🎮 Creating game and contract for creator: ${creatorAddress}`);
         console.log(`💰 Stake amount: ${stakeAmount} APT`);
         console.log(`🌐 Public: ${isPublic ? 'YES' : 'NO'}`);
+        if (settings) {
+          console.log(`⚙️ Custom settings:`, settings);
+        }
 
-        // Step 1: Create the game on-chain
-        const createTxHash = await aptosService.createGame(stakeAmount, minPlayers || 4);
+        // Step 1: Create the game on-chain (use settings.minPlayers if provided)
+        const effectiveMinPlayers = settings?.minPlayers || minPlayers || 4;
+        const createTxHash = await aptosService.createGame(stakeAmount, effectiveMinPlayers);
         console.log(`✅ Game created, transaction: ${createTxHash}`);
 
         // Step 2: Extract gameId from the create transaction
@@ -27,7 +31,14 @@ module.exports = (gameManager, aptosService) => {
         console.log(`🎮 Extracted contract gameId: ${contractGameId}`);
 
         // Step 3: Create room in game manager with contract gameId and public flag
-        const { gameId, roomCode } = await gameManager.createGame(creatorAddress, stakeAmount, minPlayers, contractGameId, isPublic || false);
+        const { gameId, roomCode } = await gameManager.createGame(
+          creatorAddress,
+          stakeAmount,
+          minPlayers,
+          contractGameId,
+          isPublic || false,
+          settings // Pass custom settings
+        );
 
         res.json({
           success: true,
@@ -40,7 +51,14 @@ module.exports = (gameManager, aptosService) => {
         });
       } else {
         // Non-staking game
-        const { gameId, roomCode } = await gameManager.createGame(creatorAddress, stakeAmount, minPlayers, null, isPublic || false);
+        const { gameId, roomCode } = await gameManager.createGame(
+          creatorAddress,
+          stakeAmount,
+          minPlayers,
+          null,
+          isPublic || false,
+          settings // Pass custom settings
+        );
 
         res.json({
           success: true,
@@ -61,7 +79,7 @@ module.exports = (gameManager, aptosService) => {
   // Create game and join it (for room creators)
   router.post('/create-and-join', async (req, res) => {
     try {
-      const { creatorAddress, stakeAmount, minPlayers, isPublic } = req.body;
+      const { creatorAddress, stakeAmount, minPlayers, isPublic, settings } = req.body;
 
       if (!creatorAddress || !stakeAmount) {
         return res.status(400).json({ error: 'Creator address and stake amount are required' });
@@ -70,13 +88,24 @@ module.exports = (gameManager, aptosService) => {
       console.log(`🎮 Creating game and joining for creator: ${creatorAddress}`);
       console.log(`💰 Stake amount: ${stakeAmount} Octas (${stakeAmount / 100000000} APT)`);
       console.log(`🌐 Public: ${isPublic ? 'YES' : 'NO'}`);
+      if (settings) {
+        console.log(`⚙️ Custom settings:`, settings);
+      }
 
-      // Step 1: Create the game on-chain with custom stake amount
-      const contractGameId = await aptosService.createGame(stakeAmount, minPlayers || 4);
+      // Step 1: Create the game on-chain with custom stake amount (use settings.minPlayers if provided)
+      const effectiveMinPlayers = settings?.minPlayers || minPlayers || 4;
+      const contractGameId = await aptosService.createGame(stakeAmount, effectiveMinPlayers);
       console.log(`✅ Game created on-chain, contract gameId: ${contractGameId}`);
 
       // Step 2: Create room in game manager (user will stake from frontend)
-      const { gameId: managerGameId, roomCode } = await gameManager.createGame(creatorAddress, stakeAmount, minPlayers || 4, contractGameId, isPublic || false);
+      const { gameId: managerGameId, roomCode } = await gameManager.createGame(
+        creatorAddress,
+        stakeAmount,
+        minPlayers || 4,
+        contractGameId,
+        isPublic || false,
+        settings // Pass custom settings to game manager
+      );
 
       res.json({
         success: true,
@@ -97,7 +126,7 @@ module.exports = (gameManager, aptosService) => {
     try {
       const { gameId } = req.params;
       const { playerAddress } = req.query; // Get player address from query params
-      
+
       let game;
       if (playerAddress) {
         // Include player's role if address provided
@@ -106,7 +135,7 @@ module.exports = (gameManager, aptosService) => {
         // Public game state without roles
         game = gameManager.getPublicGameState(gameId);
       }
-      
+
       if (!game) {
         return res.status(404).json({ error: 'Game not found' });
       }
@@ -126,7 +155,7 @@ module.exports = (gameManager, aptosService) => {
     try {
       const { gameId } = req.params;
       const updates = req.body;
-      
+
       const game = gameManager.getGame(gameId);
       if (!game) {
         return res.status(404).json({ error: 'Game not found' });
@@ -134,7 +163,7 @@ module.exports = (gameManager, aptosService) => {
 
       // Apply updates
       Object.assign(game, updates);
-      
+
       res.json({
         success: true,
         message: 'Game updated successfully'
@@ -230,7 +259,7 @@ module.exports = (gameManager, aptosService) => {
     try {
       const { roomCode } = req.params;
       const game = gameManager.getGameByRoomCode(roomCode);
-      
+
       if (!game) {
         return res.status(404).json({ error: 'Room code not found' });
       }
@@ -250,7 +279,7 @@ module.exports = (gameManager, aptosService) => {
     try {
       const { gameId } = req.params;
       const { playerAddress } = req.body;
-      
+
       const game = gameManager.getGame(gameId);
       if (!game) {
         return res.status(404).json({ error: 'Game not found' });
@@ -265,12 +294,12 @@ module.exports = (gameManager, aptosService) => {
       }
 
       game.eliminated.push(playerAddress);
-      
+
       // Check win conditions
       if (gameManager.checkWinConditions(game)) {
         gameManager.endGame(gameId);
       }
-      
+
       res.json({
         success: true,
         message: 'Player eliminated successfully'
@@ -286,7 +315,7 @@ module.exports = (gameManager, aptosService) => {
     try {
       const { gameId } = req.params;
       const { playerAddress } = req.body;
-      
+
       if (!gameId) {
         return res.status(400).json({ error: 'Game ID is required' });
       }
@@ -296,7 +325,7 @@ module.exports = (gameManager, aptosService) => {
       }
 
       gameManager.startTimerWhenReady(gameId, playerAddress);
-      
+
       res.json({
         success: true,
         message: 'Player ready signal received'
@@ -312,9 +341,9 @@ module.exports = (gameManager, aptosService) => {
     try {
       const { gameId } = req.params;
       const { playerAddress, action, commit } = req.body;
-      
+
       gameManager.submitNightAction(gameId, { playerAddress, action, commit });
-      
+
       res.json({
         success: true,
         message: 'Night action submitted successfully'
@@ -330,12 +359,13 @@ module.exports = (gameManager, aptosService) => {
     try {
       const { gameId } = req.params;
       const { playerAddress, answer } = req.body;
-      
+
       const result = gameManager.submitTaskAnswer(gameId, { playerAddress, answer });
-      
+
       res.json({
         success: true,
         correct: result.correct,
+        gameComplete: result.gameComplete,
         message: 'Task answer submitted successfully'
       });
     } catch (error) {
@@ -349,9 +379,9 @@ module.exports = (gameManager, aptosService) => {
     try {
       const { gameId } = req.params;
       const { playerAddress, vote } = req.body;
-      
+
       gameManager.submitVote(gameId, { playerAddress, vote });
-      
+
       res.json({
         success: true,
         message: 'Vote submitted successfully'
@@ -367,7 +397,7 @@ module.exports = (gameManager, aptosService) => {
     try {
       const { gameId } = req.params;
       const game = gameManager.getGame(gameId);
-      
+
       if (!game) {
         return res.status(404).json({ error: 'Game not found' });
       }
@@ -383,7 +413,7 @@ module.exports = (gameManager, aptosService) => {
         startedAt: game.startedAt,
         status: game.status
       };
-      
+
       res.json({
         success: true,
         history
@@ -485,6 +515,37 @@ module.exports = (gameManager, aptosService) => {
       });
     } catch (error) {
       console.error('❌ Error toggling game visibility:', error.message);
+      console.error('❌ Full error:', error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Update game settings (creator only, lobby phase only)
+  router.patch('/:gameId/settings', async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const { creatorAddress, settings } = req.body;
+
+      console.log('⚙️ Update settings request:', { gameId, creatorAddress, settings });
+
+      if (!creatorAddress) {
+        return res.status(400).json({ error: 'Creator address is required' });
+      }
+
+      if (!settings) {
+        return res.status(400).json({ error: 'Settings are required' });
+      }
+
+      const result = await gameManager.updateGameSettings(gameId, creatorAddress, settings);
+
+      console.log('✅ Settings updated successfully:', result);
+
+      res.json({
+        success: true,
+        settings: result.settings
+      });
+    } catch (error) {
+      console.error('❌ Error updating game settings:', error.message);
       console.error('❌ Full error:', error);
       res.status(400).json({ error: error.message });
     }

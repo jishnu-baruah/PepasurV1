@@ -8,6 +8,7 @@ import { Game } from "@/services/api"
 import { soundService } from "@/services/SoundService"
 import ColoredPlayerName from "@/components/colored-player-name"
 import TipBar from "@/components/tip-bar"
+import FullscreenToggle from "@/components/fullscreen-toggle"
 
 interface VotingScreenProps {
   players: Player[]
@@ -306,6 +307,26 @@ export default function VotingScreen({ players, game, currentPlayer, submitVote,
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-between pt-8 p-4 gaming-bg text-white font-press-start">
+      {/* Full-width header with buttons */}
+      <div className="w-full bg-black/60 border-b border-white/20 py-2 px-4 flex justify-between items-center mb-4 z-50">
+        <div className="flex gap-2">
+          <button
+            onClick={() => window.location.reload()}
+            className="w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded flex items-center justify-center"
+            title="Refresh Game State"
+          >
+            🔄
+          </button>
+          <div className="w-8 h-8 bg-black/60 rounded flex items-center justify-center border border-white/20">
+            <FullscreenToggle variant="icon" className="text-white text-sm" />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+          <div className="text-xs text-gray-400 font-press-start">{isConnected ? 'CONNECTED' : 'DISCONNECTED'}</div>
+        </div>
+      </div>
+
       {/* Top Section: Title, Timer, and Instruction Bar */}
       <div className="w-full max-w-7xl text-center">
         <h1 className="text-4xl md:text-5xl font-bold pixel-text-3d-white pixel-text-3d-float-long">VOTING PHASE</h1>
@@ -323,12 +344,11 @@ export default function VotingScreen({ players, game, currentPlayer, submitVote,
         <TipBar
           phase="voting"
           tips={[
-            "Vote to eliminate a player you suspect is ASUR (mafia).",
-            "The player with the most votes will be eliminated.",
-            "In case of a tie, no one gets eliminated.",
-            "Use information from night phase eliminations and investigations.",
-            "Pay attention to voting patterns - ASURs might vote together.",
-            "Once you confirm your vote, you cannot change it."
+            "Click a player to select, <strong>double-click to confirm</strong>.",
+            "Vote to eliminate who you suspect is ASUR",
+            "Most votes = eliminated",
+            "Tie = no elimination",
+            "Use info from night phase"
           ]}
           className="mt-4"
         />

@@ -39,9 +39,17 @@ class GameManager {
   }
 
   // Create a new game with staking requirement
-  async createGame(creatorAddress, stakeAmount, minPlayers, contractGameId = null, isPublic = false) {
+  async createGame(creatorAddress, stakeAmount, minPlayers, contractGameId = null, isPublic = false, settings = null) {
     const gameId = uuidv4();
     const roomCode = this.generateRoomCode();
+
+    // Default settings if not provided (phase durations only)
+    const defaultSettings = {
+      nightPhaseDuration: 30,
+      resolutionPhaseDuration: 10,
+      taskPhaseDuration: 30,
+      votingPhaseDuration: 10
+    };
 
     const game = {
       gameId,
@@ -67,7 +75,8 @@ class GameManager {
       winners: [],
       roleCommit: null,
       status: 'lobby', // Fixed: should be 'lobby' not 'active'
-      isPublic: isPublic
+      isPublic: isPublic,
+      settings: settings || defaultSettings // Store custom settings
     };
 
     if (contractGameId) {
@@ -106,7 +115,8 @@ class GameManager {
         status: 'lobby',
         phase: 'lobby',
         onChainGameId: game.onChainGameId,
-        stakingRequired: game.stakingRequired
+        stakingRequired: game.stakingRequired,
+        settings: game.settings
       });
 
       // Use Promise.race to add a timeout
@@ -573,7 +583,7 @@ class GameManager {
     game.phase = 'night';
     game.status = 'active'; // Mark as active to prevent TTL expiration
     game.startedAt = Date.now();
-    game.timeLeft = parseInt(process.env.GAME_TIMEOUT_SECONDS) || 30;
+    game.timeLeft = game.settings?.nightPhaseDuration || parseInt(process.env.GAME_TIMEOUT_SECONDS) || 30;
 
     // Track game start time for timeout monitoring
     this.gameStartTimes.set(gameId, Date.now());
@@ -745,9 +755,33 @@ class GameManager {
       await this.resolveTaskPhase(gameId);
     } else if (game.phase === 'voting') {
       if (game.votingResolved) {
-        console.log(`Voting already resolved, calling endGame for game ${gameId}`);
-        await this.endGame(gameId);
-        return;
+        console.log(`Voting already resolved for game ${gameId}`);
+
+        // Check if game is over
+        if (game.isGameOver) {
+          console.log(`Game is over, calling endGame for game ${gameId}`);
+          await this.endGame(gameId);
+          return;
+        } else {
+          console.log(`Game continues, transitioning to night phase for game ${gameId}`);
+          // Transition to night phase
+          game.phase = 'night';
+          game.day++;
+          game.timeLeft = game.settings?.nightPhaseDuration || parseInt(process.env.GAME_TIMEOUT_SECONDS) || 30;
+          game.pendingActions = {};
+          this.phaseStartTimes.set(gameId, Date.now());
+          game.votes = {};
+          game.votingResolved = false;
+          game.votingResult = null;
+          game.nightResolution = null; // Clear previous night resolution
+
+          await this.startTimer(gameId, true);
+
+          if (this.socketManager) {
+            this.socketManager.emitGameStateUpdate(gameId);
+          }
+          return;
+        }
       } else {
         console.log(`Calling resolveVotingPhase for game ${gameId}`);
         await this.resolveVotingPhase(gameId);
@@ -904,9 +938,9 @@ class GameManager {
       return;
     }
 
-    // Move to resolution phase (10 seconds - increased for stability)
+    // Move to resolution phase
     game.phase = 'resolution';
-    game.timeLeft = 10; // Increased from 5 to 10 seconds for stability
+    game.timeLeft = game.settings?.resolutionPhaseDuration || 10;
     this.phaseStartTimes.set(gameId, Date.now()); // Track phase start time
 
     // Reset timer state for resolution phase
@@ -973,7 +1007,7 @@ class GameManager {
     game.phase = 'task';
     game.task = this.generateTask();
     game.pendingActions = {};
-    game.timeLeft = 30; // 30 seconds for task/discussion (keep this as is)
+    game.timeLeft = game.settings?.taskPhaseDuration || 30;
     this.phaseStartTimes.set(gameId, Date.now()); // Track phase start time
 
     // Start timer for task phase (same pattern as game start)
@@ -1007,7 +1041,7 @@ class GameManager {
 
     // Move to voting phase
     game.phase = 'voting';
-    game.timeLeft = 10; // 10 seconds for voting
+    game.timeLeft = game.settings?.votingPhaseDuration || 10;
     game.votes = {};
     game.votingResult = null;
     this.phaseStartTimes.set(gameId, Date.now()); // Track phase start time
@@ -1082,34 +1116,17 @@ class GameManager {
     // Give players time to see the voting results (5 seconds)
     game.timeLeft = 5;
 
+    // Restart timer to countdown the 5 second display period
+    console.log(`🔄 Restarting timer for ${gameId} to show voting results for 5 seconds`);
+    await this.startTimer(gameId, true); // Restart timer to countdown from 5
+
     // Emit state update so players can see voting resolution
     if (this.socketManager) {
       this.socketManager.emitGameStateUpdate(gameId);
     }
 
-    // Wait for display time, then check win conditions and transition
-    setTimeout(async () => {
-      if (game.isGameOver) {
-        await this.endGame(gameId);
-        return;
-      }
-
-      // Transition to night phase
-      game.phase = 'night';
-      game.day++;
-      game.timeLeft = parseInt(process.env.GAME_TIMEOUT_SECONDS) || 30;
-      game.pendingActions = {};
-      this.phaseStartTimes.set(gameId, Date.now()); // Track phase start time
-      game.votes = {};
-      game.votingResolved = false; // Reset for next voting round
-      game.votingResult = null; // Reset for next voting round
-
-      await this.startTimer(gameId, true);
-
-      if (this.socketManager) {
-        this.socketManager.emitGameStateUpdate(gameId);
-      }
-    }, 5000); // 5 second delay to show results
+    // NOTE: Timer will automatically call endGame when timeLeft reaches 0 if isGameOver is true
+    // handleTimerExpired will detect votingResolved === true and call endGame
   }
 
   // Process detective action
@@ -1264,30 +1281,26 @@ class GameManager {
 
     // Send task result announcement via socket
     if (this.socketManager) {
+      // Emit task result update (for task count updates)
       this.socketManager.emitTaskResult(gameId, {
         playerAddress,
         isSuccess: correct,
         taskCount: game.taskCounts[playerAddress]
       });
 
-      // Send announcement message to chat (server-side to prevent duplicates)
-      const player = game.players.find(p => p === playerAddress);
-      if (player) {
-        const taskWord = correct ? '✅ completed' : '❌ failed';
-        const message = `Task ${taskWord}`;
-
-        this.socketManager.emitChatMessage(gameId, {
-          playerAddress: 'SYSTEM',
-          playerName: 'SYSTEM',
-          message: message,
-          type: correct ? 'task_success' : 'task_failure',
-          taskPlayerAddress: playerAddress, // Include player info for frontend to use avatar
-          timestamp: new Date().toISOString()
-        });
-      }
+      // Send task announcement to chat
+      this.socketManager.sendTaskAnnouncement(gameId, playerAddress, correct, game);
     }
 
     console.log(`📊 Task result for ${playerAddress}: ${correct ? 'SUCCESS' : 'FAILURE'}, count: ${game.taskCounts[playerAddress]}`);
+
+    // Check win conditions after task completion (task-based wins should be immediate)
+    if (this.checkWinConditions(game)) {
+      console.log(`🎯 Game ending due to task completion win condition`);
+      // End game immediately - don't transition to voting
+      setTimeout(() => this.endGame(gameId), 1000); // Small delay to let frontend update
+      return { correct, gameComplete: true };
+    }
 
     // Check if all players submitted
     const activePlayers = game.players.filter(p => !game.eliminated.includes(p));
@@ -1296,7 +1309,7 @@ class GameManager {
     if (submittedCount >= activePlayers.length) {
       // Move to voting phase
       game.phase = 'voting';
-      game.timeLeft = 10; // 10 seconds for voting
+      game.timeLeft = game.settings?.votingPhaseDuration || 10;
       game.votes = {};
       this.phaseStartTimes.set(gameId, Date.now()); // Track phase start time
     }
@@ -1368,6 +1381,21 @@ class GameManager {
     console.log(`   Mafia count: ${mafiaCount}`);
     console.log(`   Villager count: ${villagerCount}`);
     console.log(`   All roles:`, game.roles);
+
+    // Check task completion win condition (100% tasks = non-asurs win)
+    if (game.taskCounts) {
+      const totalTaskCount = Object.values(game.taskCounts).reduce((sum, count) => sum + count, 0);
+      const maxTaskCount = game.settings?.maxTaskCount || 4; // Use configured value or default to 4
+      console.log(`   Task completion: ${totalTaskCount}/${maxTaskCount}`);
+
+      if (totalTaskCount >= maxTaskCount) {
+        // Non-asurs (villagers) win by completing all tasks
+        game.winners = activePlayers.filter(p => game.roles[p] !== 'Mafia');
+        console.log(`🎯 ✅ NON-ASURS WIN - 100% tasks completed (${totalTaskCount}/${maxTaskCount})`);
+        console.log(`   Winners:`, game.winners);
+        return true;
+      }
+    }
 
     if (mafiaCount === 0) {
       // Villagers win - all Mafia eliminated
@@ -1441,6 +1469,38 @@ class GameManager {
         if (!contractGameId) {
           console.error('❌ No contract gameId available for reward distribution');
           return game;
+        }
+
+        // Check on-chain game status before attempting settlement (TEMPORARILY DISABLED - view function not in contract)
+        // TODO: Add get_game_info view function to smart contract
+        try {
+          // const aptosService = new (require('./AptosService'))();
+          // const gameInfo = await aptosService.getGameInfo(contractGameId);
+          // console.log(`📊 On-chain game status:`, gameInfo);
+
+          // // Status codes: 0 = LOBBY, 1 = IN_PROGRESS, 2 = SETTLED, 3 = CANCELLED
+          // if (gameInfo.status === 0) {
+          //   console.error(`❌ Cannot settle game ${contractGameId} - still in LOBBY status on-chain`);
+          //   console.error(`   This means not all players have staked on-chain yet.`);
+          //   console.error(`   Players in backend: ${game.players.length}`);
+          //   console.error(`   Players on-chain: ${gameInfo.players?.length || 'unknown'}`);
+          //   return game;
+          // }
+          console.log(`⚠️ Skipping on-chain status check (view function not implemented yet)`)
+
+          // if (gameInfo.status === 2) {
+          //   console.log(`✅ Game ${contractGameId} already settled on-chain, skipping settlement`);
+          //   return game;
+          // }
+
+          // if (gameInfo.status === 3) {
+          //   console.log(`⚠️ Game ${contractGameId} was cancelled on-chain, skipping settlement`);
+          //   return game;
+          // }
+        } catch (statusError) {
+          console.error(`❌ Error checking on-chain game status:`, statusError.message);
+          console.error(`   Proceeding with settlement anyway`);
+          // Don't return early - proceed with settlement
         }
 
         console.log(`💰 Using contract gameId: ${contractGameId}`);
@@ -1667,6 +1727,111 @@ class GameManager {
       return { success: true, isPublic: game.isPublic };
     } catch (error) {
       console.error('❌ Error toggling game visibility:', error);
+      throw error;
+    }
+  }
+
+  // Validate game settings
+  validateGameSettings(settings) {
+    const validationRules = {
+      nightPhaseDuration: { min: 1, max: 120, name: 'Night Phase Duration' },
+      resolutionPhaseDuration: { min: 1, max: 60, name: 'Resolution Phase Duration' },
+      taskPhaseDuration: { min: 1, max: 180, name: 'Task Phase Duration' },
+      votingPhaseDuration: { min: 1, max: 60, name: 'Voting Phase Duration' },
+      maxTaskCount: { min: 2, max: 20, name: 'Max Task Count' }
+    };
+
+    const errors = [];
+
+    for (const [key, value] of Object.entries(settings)) {
+      if (validationRules[key]) {
+        const rule = validationRules[key];
+
+        // Check if value is a number
+        if (typeof value !== 'number' || isNaN(value)) {
+          errors.push(`${rule.name} must be a valid number`);
+          continue;
+        }
+
+        // Check min/max bounds
+        if (value < rule.min) {
+          errors.push(`${rule.name} must be at least ${rule.min} seconds`);
+        }
+        if (value > rule.max) {
+          errors.push(`${rule.name} cannot exceed ${rule.max} seconds`);
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new Error(`Invalid settings: ${errors.join(', ')}`);
+    }
+  }
+
+  // Update game settings (creator only, lobby phase only)
+  async updateGameSettings(gameId, creatorAddress, settings) {
+    try {
+      // Update in-memory game
+      const game = this.games.get(gameId);
+      if (!game) {
+        throw new Error('Game not found');
+      }
+
+      // Normalize addresses for comparison (case-insensitive)
+      const normalizeAddress = (addr) => {
+        if (!addr) return '';
+        return addr.toLowerCase().replace(/^0x/, '');
+      };
+
+      if (normalizeAddress(game.creator) !== normalizeAddress(creatorAddress)) {
+        console.error(`❌ Creator mismatch: game.creator=${game.creator}, creatorAddress=${creatorAddress}`);
+        throw new Error('Only the creator can update settings');
+      }
+
+      if (game.phase !== 'lobby') {
+        throw new Error('Cannot update settings after game has started');
+      }
+
+      // Validate settings before updating
+      this.validateGameSettings(settings);
+
+      // Update settings (merge with existing settings)
+      // Note: minPlayers is NOT part of settings - it's a separate game property
+      game.settings = {
+        ...game.settings,
+        ...settings
+      };
+
+      console.log(`⚙️ Updated settings for game ${gameId}:`, game.settings);
+
+      // Update database (if available)
+      try {
+        const dbGame = await Promise.race([
+          Game.findOne({ gameId }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 2000))
+        ]);
+
+        if (dbGame) {
+          dbGame.settings = game.settings;
+          await Promise.race([
+            dbGame.save(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 2000))
+          ]);
+          console.log(`💾 Updated settings in database for game ${gameId}`);
+        }
+      } catch (dbError) {
+        console.warn(`⚠️ Could not update database, but in-memory game updated:`, dbError.message);
+        // Continue even if database update fails
+      }
+
+      // Broadcast update to all players in the lobby
+      if (this.socketManager) {
+        this.socketManager.emitGameStateUpdate(gameId);
+      }
+
+      return { success: true, settings: game.settings };
+    } catch (error) {
+      console.error('❌ Error updating game settings:', error);
       throw error;
     }
   }

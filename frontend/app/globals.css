@@ -698,6 +698,83 @@ input, textarea, select {
   }
 }
 
+/* Task Announcement Epic Entry */
+.task-announcement-epic {
+  animation: epicTaskEntry 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes epicTaskEntry {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(-50px);
+  }
+  60% {
+    transform: scale(1.05) translateY(5px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Task Announcement Pulse Glow */
+.task-announcement-glow {
+  animation: taskGlow 2s ease-in-out infinite;
+}
+
+@keyframes taskGlow {
+  0%, 100% {
+    box-shadow:
+      0 0 10px rgba(74, 140, 74, 0.3),
+      0 0 20px rgba(74, 140, 74, 0.2),
+      inset 0 0 10px rgba(74, 140, 74, 0.1);
+  }
+  50% {
+    box-shadow:
+      0 0 20px rgba(74, 140, 74, 0.6),
+      0 0 40px rgba(74, 140, 74, 0.4),
+      inset 0 0 15px rgba(74, 140, 74, 0.2);
+  }
+}
+
+.task-announcement-glow-red {
+  animation: taskGlowRed 2s ease-in-out infinite;
+}
+
+@keyframes taskGlowRed {
+  0%, 100% {
+    box-shadow:
+      0 0 10px rgba(239, 68, 68, 0.3),
+      0 0 20px rgba(239, 68, 68, 0.2),
+      inset 0 0 10px rgba(239, 68, 68, 0.1);
+  }
+  50% {
+    box-shadow:
+      0 0 20px rgba(239, 68, 68, 0.6),
+      0 0 40px rgba(239, 68, 68, 0.4),
+      inset 0 0 15px rgba(239, 68, 68, 0.2);
+  }
+}
+
+/* Investigation Result Modal Epic Entry */
+.investigation-result-enter {
+  animation: investigationEntry 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes investigationEntry {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) rotateY(-90deg);
+  }
+  50% {
+    transform: scale(1.05) rotateY(5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotateY(0deg);
+  }
+}
+
 .chat-message-glow {
   box-shadow: 
     0 0 5px rgba(74, 140, 74, 0.2),

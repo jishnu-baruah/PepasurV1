@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSocket } from '@/contexts/SocketContext'
 import { apiService, Game, GameAction, TaskSubmission, VoteSubmission } from '@/services/api'
 import { soundService } from '@/services/SoundService'
@@ -33,7 +33,7 @@ export interface GameActions {
   submitTaskAnswer: (answer: any) => Promise<void>
   submitVote: (vote: string) => Promise<void>
   eliminatePlayer: (playerAddress: string) => Promise<void>
-  refreshGame: () => Promise<void>
+  refreshGame: (explicitGameId?: string, explicitPlayerAddress?: string) => Promise<void>
   currentGameId?: string
   setCurrentGameId: (gameId: string | undefined) => void
   setCurrentPlayerFromAddress: (address: string) => void
@@ -50,7 +50,7 @@ export function useGame(gameId?: string): GameState & GameActions {
   const [error, setError] = useState<string | null>(null)
   const [currentGameId, setCurrentGameId] = useState<string | undefined>(gameId)
   const [processedTaskResults, setProcessedTaskResults] = useState<Set<string>>(new Set())
-  const [sentAnnouncements, setSentAnnouncements] = useState<Set<string>>(new Set())
+  const [taskUpdateTimeout, setTaskUpdateTimeout] = useState<NodeJS.Timeout | null>(null)
 
   // Color alias and avatar mapping (must stay in sync)
   const colorAliases = [
@@ -64,27 +64,17 @@ export function useGame(gameId?: string): GameState & GameActions {
   const generateUsername = useCallback((playerIndex: number): string => {
     // Use player's position in game to ensure unique aliases
     const colorAlias = colorAliases[playerIndex % colorAliases.length];
-    console.log(`👤 Assigned alias ${colorAlias.name} to player at index ${playerIndex}`);
     return colorAlias.name;
   }, []);
 
   // Generate avatar based on player index (matches username)
   const generateAvatar = useCallback((playerIndex: number): string => {
     const colorAlias = colorAliases[playerIndex % colorAliases.length];
-    console.log(`🎨 Assigned avatar ${colorAlias.avatar.split('/').pop()?.split('?')[0]} to player at index ${playerIndex}`);
     return colorAlias.avatar;
   }, []);
 
   // Convert backend players to frontend format
   const convertPlayers = useCallback((game: Game, currentPlayerAddress?: string): Player[] => {
-    console.log('🔍 convertPlayers called with game:', {
-      gameId: game.gameId,
-      phase: game.phase,
-      players: game.players,
-      roles: game.roles,
-      currentPlayerAddress
-    })
-
     // Role mapping from backend to frontend
     const roleMapping: Record<string, string> = {
       'Mafia': 'ASUR',
@@ -96,8 +86,6 @@ export function useGame(gameId?: string): GameState & GameActions {
     return game.players.map((address, index) => {
       const backendRole = game.roles?.[address] || ''
       const frontendRole = roleMapping[backendRole] || backendRole
-
-      console.log(`Player ${index + 1} (${address}): ${backendRole} -> ${frontendRole}`)
 
       // Generate username and public avatar based on player index (ensures uniqueness)
       const username = generateUsername(index)
@@ -124,10 +112,6 @@ export function useGame(gameId?: string): GameState & GameActions {
           avatar = 'https://ik.imagekit.io/3rdfd9oed/pepAsur%20Assets/sage.png?updatedAt=1758922659655'
         }
         // MANAV keeps the colored shirt even when revealed
-
-        console.log(`🎭 ${frontendRole} role avatar shown for ${username}: ${avatar}`)
-      } else {
-        console.log(`👕 Public colored shirt shown for ${username}: ${avatar}`)
       }
 
       const player = {
@@ -140,80 +124,40 @@ export function useGame(gameId?: string): GameState & GameActions {
         address
       }
 
-      console.log(`👤 Created player: ${username}, avatar: ${avatar ? 'assigned' : 'MISSING'}`)
       return player
     })
   }, [generateUsername, generateAvatar])
 
-  // Generate task result announcements with avatar
-  const generateTaskAnnouncement = useCallback((player: Player, isSuccess: boolean): { message: string, type: string } => {
-    const playerName = player.name || 'Unknown Player'
+  // Memoize converted players to prevent flickering - only recompute when game data actually changes
+  const memoizedPlayers = useMemo(() => {
+    if (!game) return []
 
-    const successMessages = [
-      `${playerName} absolutely crushed it! Task count +1`,
-      `${playerName}'s memory is on fire! Contributing like a boss!`,
-      `${playerName} just flexed their brain muscles! Task count up!`,
-      `${playerName} absolutely nailed it! Contributing like a legend!`,
-      `${playerName} just dominated that task! Count goes up!`,
-      `${playerName} showed everyone how it's done! Task count up!`,
-      `${playerName} just aced that task! Task count +1`,
-      `${playerName} just proved they're a genius! Count up!`
-    ]
+    const currentPlayerAddress = currentPlayer?.address || currentPlayer?.id
 
-    const failureMessages = [
-      `${playerName} totally fucked up that one! Task count -1`,
-      `${playerName}'s brain went brrrr... wrong direction! Count down!`,
-      `${playerName} had a smooth brain moment! Better luck next time!`,
-      `${playerName} just embarrassed themselves! Task count -1`,
-      `${playerName} just proved intelligence is optional! Task count -1`,
-      `${playerName} just had a complete mental breakdown! Better luck next time!`,
-      `${playerName}'s mind just crashed and burned!`,
-      `${playerName} just slipped up big time! Try harder!`
-    ]
+    return convertPlayers(game, currentPlayerAddress)
+  }, [game?.players, game?.roles, game?.eliminated, game?.phase, currentPlayer?.address, currentPlayer?.id, convertPlayers])
 
-    const messages = isSuccess ? successMessages : failureMessages
-    const randomMessage = messages[Math.floor(Math.random() * messages.length)]
+  // Sync memoized players to state when they change
+  useEffect(() => {
+    if (memoizedPlayers.length > 0 && JSON.stringify(memoizedPlayers) !== JSON.stringify(players)) {
+      setPlayers(memoizedPlayers)
 
-    return {
-      message: randomMessage,
-      type: isSuccess ? 'task_success' : 'task_failure'
+      // Also update current player from memoized players (to get proper name and avatar)
+      if (currentPlayer?.address) {
+        const updatedCurrentPlayer = memoizedPlayers.find((p: Player) => p.address === currentPlayer.address)
+        if (updatedCurrentPlayer && (
+          updatedCurrentPlayer.name !== currentPlayer.name ||
+          updatedCurrentPlayer.avatar !== currentPlayer.avatar
+        )) {
+          setCurrentPlayer(prev => prev ? {
+            ...prev,
+            name: updatedCurrentPlayer.name,
+            avatar: updatedCurrentPlayer.avatar
+          } : null)
+        }
+      }
     }
-  }, [])
-
-  // Send task result announcement to chat
-  const sendTaskAnnouncement = useCallback((player: Player, isSuccess: boolean) => {
-    if (!game?.gameId || !sendChatMessage) return
-
-    // Create unique key for this announcement to prevent duplicates
-    const announcementKey = `${player.address}-${isSuccess}-${game.task?.id || 'unknown'}-${game?.day || 1}`
-
-    // Check if we've already sent this announcement
-    if (sentAnnouncements.has(announcementKey)) {
-      console.log('🔄 Duplicate announcement prevented:', announcementKey)
-      return
-    }
-
-    // Mark this announcement as sent immediately
-    setSentAnnouncements(prev => {
-      const newSet = new Set(prev)
-      newSet.add(announcementKey)
-      return newSet
-    })
-
-    const announcement = generateTaskAnnouncement(player, isSuccess)
-
-    console.log('📢 Sending task announcement:', announcementKey, announcement.message)
-
-    sendChatMessage({
-      gameId: game.gameId,
-      playerAddress: 'SYSTEM', // Mark as system message
-      playerName: 'SYSTEM',
-      avatarUrl: player.avatar, // Use the player's avatar who completed the task
-      message: announcement.message,
-      type: announcement.type,
-      timestamp: new Date().toISOString()
-    })
-  }, [game?.gameId, game?.task?.id, game?.day, sendChatMessage, generateTaskAnnouncement, sentAnnouncements])
+  }, [memoizedPlayers])
 
   // Reset game state and clear session
   const resetGame = useCallback(() => {
@@ -244,57 +188,40 @@ export function useGame(gameId?: string): GameState & GameActions {
     if (!socket) return
 
     const handleGameState = (data: { gameId: string; game: Game }) => {
-      console.log('🎮 SOCKET EVENT: Received game state:', data)
-      console.log('🎮 Current player before update:', currentPlayer)
-      console.log('🎮 Game phase in received data:', data.game?.phase)
-      console.log('🎮 TimeLeft in received data:', data.game?.timeLeft)
       setGame(data.game)
 
-      if (data.game) {
-        // Try to get current player address from multiple sources
-        const currentPlayerAddress = currentPlayer?.address ||
-          (currentPlayer?.id && currentPlayer.id !== 'You' ? currentPlayer.id : null)
+      // Player conversion and state updates are handled by memoizedPlayers effect
+      // Just update current player role if it changed
+      if (data.game && currentPlayer?.address) {
+        const playerData = data.game.players.find(p => p === currentPlayer.address)
+        if (playerData) {
+          const backendRole = data.game.roles?.[currentPlayer.address]
+          const roleMapping: Record<string, string> = {
+            'Mafia': 'ASUR',
+            'Doctor': 'DEVA',
+            'Detective': 'RISHI',
+            'Villager': 'MANAV'
+          }
+          const frontendRole = roleMapping[backendRole] || backendRole
 
-        console.log('Converting players with currentPlayer address:', currentPlayerAddress)
-        const convertedPlayers = convertPlayers(data.game, currentPlayerAddress)
-        setPlayers(convertedPlayers)
-
-        // Update current player from converted players
-        const currentPlayerFromConverted = convertedPlayers.find(p =>
-          p.address === currentPlayerAddress ||
-          (currentPlayerAddress && p.address === currentPlayerAddress)
-        )
-
-        if (currentPlayerFromConverted && currentPlayerFromConverted.role) {
-          console.log(`[handleGameState] Updating current player role: ${currentPlayerFromConverted.role}`)
-          setCurrentPlayer(prev => prev ? {
-            ...prev,
-            role: currentPlayerFromConverted.role,
-            avatar: currentPlayerFromConverted.avatar,
-            name: currentPlayerFromConverted.name // Update name too
-          } : {
-            id: currentPlayerFromConverted.id,
-            name: currentPlayerFromConverted.name, // Use name from convertedPlayers
-            avatar: currentPlayerFromConverted.avatar,
-            isAlive: true,
-            isCurrentPlayer: true,
-            address: currentPlayerFromConverted.address,
-            role: currentPlayerFromConverted.role
-          })
-        } else {
-          console.log('No role found for current player:', currentPlayerFromConverted)
+          if (frontendRole && frontendRole !== currentPlayer.role) {
+            setCurrentPlayer(prev => prev ? {
+              ...prev,
+              role: frontendRole
+            } : null)
+          }
         }
-      } else {
-        console.log('No game data available')
       }
     }
 
     const handleGameUpdate = (data: any) => {
-      console.log('🎮 Game update:', data)
-
-      // Refresh game state when updates occur
-      if (currentGameId) {
-        refreshGame()
+      // Game updates are already handled by game_state events
+      // Only refresh for specific critical updates that aren't broadcast via game_state
+      if (data.type && ['player_joined', 'player_afk', 'player_disconnected'].includes(data.type)) {
+        console.log('🎮 Critical game update, refreshing:', data.type)
+        if (currentGameId) {
+          refreshGame()
+        }
       }
     }
 
@@ -303,38 +230,76 @@ export function useGame(gameId?: string): GameState & GameActions {
     }
 
     const handleTaskResult = (data: { playerAddress: string; isSuccess: boolean; taskCount: number }) => {
-      console.log('🎮 Task result received:', data)
+      console.log('🎮 TASK_RESULT event received:', {
+        playerAddress: data.playerAddress,
+        isSuccess: data.isSuccess,
+        taskCount: data.taskCount,
+        currentGameTaskId: game?.task?.id,
+        currentDay: game?.day
+      })
 
       // Create unique key for this task result (more specific to prevent duplicates)
       const resultKey = `${data.playerAddress}-${data.isSuccess}-${game?.task?.id || 'unknown'}-${game?.day || 1}`
 
       // Check if we've already processed this result (prevent duplicates)
       if (processedTaskResults.has(resultKey)) {
-        console.log('🔄 Duplicate task result ignored:', resultKey)
+        console.log('🔄 DUPLICATE task result ignored:', resultKey)
         return
       }
+
+      console.log('✅ NEW task result, processing:', resultKey)
 
       // Mark this result as processed immediately
       setProcessedTaskResults(prev => {
         const newSet = new Set(prev)
         newSet.add(resultKey)
+        console.log('📝 Processed task results now contains:', Array.from(newSet))
         return newSet
       })
 
-      // Update task counts in game state
-      if (game) {
-        setGame(prev => prev ? {
-          ...prev,
-          taskCounts: {
-            ...prev.taskCounts,
-            [data.playerAddress]: data.taskCount
-          }
-        } : null)
+      // Debounce task count updates to prevent flickering
+      if (taskUpdateTimeout) {
+        console.log('⏱️ Clearing existing timeout')
+        clearTimeout(taskUpdateTimeout)
       }
 
-      // Note: Task announcements are now sent from the server to prevent duplicates
-      // No need to send from client side anymore
-      console.log(`📢 Task result processed for ${data.playerAddress}: ${data.isSuccess ? 'SUCCESS' : 'FAILURE'}, count: ${data.taskCount}`)
+      const timeout = setTimeout(() => {
+        console.log('⏰ Debounce timeout fired, updating game state')
+        setGame(prev => {
+          if (!prev) {
+            console.log('⚠️ No previous game state')
+            return null
+          }
+
+          // Only update if the count actually changed
+          const currentCount = prev.taskCounts?.[data.playerAddress] || 0
+          console.log('🔍 Checking count change:', {
+            playerAddress: data.playerAddress,
+            currentCount,
+            newCount: data.taskCount,
+            willUpdate: currentCount !== data.taskCount
+          })
+
+          if (currentCount === data.taskCount) {
+            console.log('🔄 Task count UNCHANGED, skipping update')
+            return prev
+          }
+
+          const newState = {
+            ...prev,
+            taskCounts: {
+              ...prev.taskCounts,
+              [data.playerAddress]: data.taskCount
+            }
+          }
+          console.log('📊 UPDATING game state with new task counts:', newState.taskCounts)
+          return newState
+        })
+      }, 500) // 500ms debounce to reduce flickering
+
+      setTaskUpdateTimeout(timeout)
+
+      console.log(`📢 Task result scheduled for update: ${data.playerAddress}: ${data.isSuccess ? 'SUCCESS' : 'FAILURE'}, count: ${data.taskCount}`)
     }
 
     const handleChatMessage = (data: any) => {
@@ -374,6 +339,11 @@ export function useGame(gameId?: string): GameState & GameActions {
     socket.on('game_cancelled', handleGameCancelled)
 
     return () => {
+      // Cleanup timeout on unmount
+      if (taskUpdateTimeout) {
+        clearTimeout(taskUpdateTimeout)
+      }
+
       socket.off('game_state', handleGameState)
       socket.off('game_update', handleGameUpdate)
       socket.off('task_update', handleTaskUpdate)
@@ -382,7 +352,7 @@ export function useGame(gameId?: string): GameState & GameActions {
       socket.off('error', handleError)
       socket.off('game_cancelled', handleGameCancelled)
     }
-  }, [socket, currentGameId, convertPlayers, currentPlayer, players, sendTaskAnnouncement, resetGame])
+  }, [socket, currentGameId, convertPlayers, currentPlayer, players, resetGame])
 
   // Clear game state when currentGameId is set to null (player left game)
   useEffect(() => {
@@ -392,7 +362,6 @@ export function useGame(gameId?: string): GameState & GameActions {
       setCurrentPlayer(null)
       setPlayers([])
       setProcessedTaskResults(new Set())
-      setSentAnnouncements(new Set())
     }
   }, [currentGameId])
 
@@ -401,7 +370,6 @@ export function useGame(gameId?: string): GameState & GameActions {
     if (game?.phase === 'task' && game?.task?.id) {
       console.log('🧹 Clearing processed task results for new task phase:', game.task.id)
       setProcessedTaskResults(new Set())
-      setSentAnnouncements(new Set())
     }
   }, [game?.phase, game?.task?.id])
 
@@ -683,45 +651,45 @@ export function useGame(gameId?: string): GameState & GameActions {
     console.log('🔧 setCurrentPlayerFromAddress (temp):', player)
   }, [])
 
-  const refreshGame = useCallback(async (): Promise<void> => {
-    if (!currentGameId) return
+  const refreshGame = useCallback(async (explicitGameId?: string, explicitPlayerAddress?: string): Promise<void> => {
+    const gameIdToUse = explicitGameId || currentGameId
+    const playerAddressToUse = explicitPlayerAddress || currentPlayer?.address
 
-    console.log('🔄 refreshGame called for gameId:', currentGameId)
+    if (!gameIdToUse) return
+
     // Don't set loading state for background refreshes
     setError(null)
 
     try {
-      const response = await apiService.getGame(currentGameId, currentPlayer?.address)
-      console.log('🔄 refreshGame API response:', response)
+      const response = await apiService.getGame(gameIdToUse, playerAddressToUse)
 
       if (response.success) {
         setGame(response.game)
 
-        if (response.game && currentPlayer?.address) {
-          console.log('🔄 refreshGame - converting players for address:', currentPlayer.address)
-          const convertedPlayers = convertPlayers(response.game, currentPlayer.address)
-          setPlayers(convertedPlayers)
-
-          // Update current player from converted players
-          const currentPlayerFromConverted = convertedPlayers.find(p => p.address === currentPlayer.address)
-          console.log('🔄 refreshGame - currentPlayerFromConverted:', currentPlayerFromConverted)
-
-          if (currentPlayerFromConverted && currentPlayerFromConverted.role) {
-            console.log(`[refreshGame] Updating current player: ${currentPlayerFromConverted.name} (${currentPlayerFromConverted.role})`)
-            setCurrentPlayer(prev => prev ? {
-              ...prev,
-              role: currentPlayerFromConverted.role,
-              name: currentPlayerFromConverted.name, // Update name from game state
-              avatar: currentPlayerFromConverted.avatar // Update avatar from game state
-            } : null)
-          } else {
-            console.log('🔄 refreshGame - No role found for current player:', currentPlayerFromConverted)
+        // Set basic current player info - memoizedPlayers effect will update full player data
+        if (response.game && playerAddressToUse && response.game.players.includes(playerAddressToUse)) {
+          const backendRole = response.game.roles?.[playerAddressToUse]
+          const roleMapping: Record<string, string> = {
+            'Mafia': 'ASUR',
+            'Doctor': 'DEVA',
+            'Detective': 'RISHI',
+            'Villager': 'MANAV'
           }
+          const frontendRole = roleMapping[backendRole] || backendRole
+
+          setCurrentPlayer({
+            id: playerAddressToUse,
+            name: playerAddressToUse, // Will be updated by memoizedPlayers
+            avatar: '', // Will be updated by memoizedPlayers
+            isAlive: true,
+            isCurrentPlayer: true,
+            address: playerAddressToUse,
+            role: frontendRole
+          })
         }
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to refresh game'
-      console.log('🔄 refreshGame error:', errorMessage)
 
       // If game not found, clear session instead of showing error
       if (errorMessage.toLowerCase().includes('not found') ||

@@ -19,6 +19,8 @@ import { clearGameSession } from "@/utils/sessionPersistence"
 import { canLeaveGame } from "@/utils/connectivityChecker"
 import FullscreenToggle from "@/components/fullscreen-toggle"
 import ColoredPlayerName from "@/components/colored-player-name"
+import LobbySettingsDialog, { FullGameSettings, DEFAULT_GAME_SETTINGS } from "@/components/lobby-settings-dialog"
+import { GameSettings } from "@/services/api"
 
 interface LobbyScreenProps {
   players: Player[]
@@ -27,9 +29,10 @@ interface LobbyScreenProps {
   onStartGame: () => void
   playerAddress?: string
   onLeaveGame?: () => void
+  refreshGame?: () => Promise<void>
 }
 
-export default function LobbyScreen({ players, game, isConnected, onStartGame, playerAddress, onLeaveGame }: LobbyScreenProps) {
+export default function LobbyScreen({ players, game, isConnected, onStartGame, playerAddress, onLeaveGame, refreshGame }: LobbyScreenProps) {
   const [chatEnabled, setChatEnabled] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
   const [isPublic, setIsPublic] = useState(false)
@@ -38,6 +41,8 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
   const [isLeavingGame, setIsLeavingGame] = useState(false)
   const [copied, setCopied] = useState(false)
   const [leaveMethod, setLeaveMethod] = useState<'normal' | 'force_local' | null>(null)
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false)
+  const [gameSettings, setGameSettings] = useState<FullGameSettings>(DEFAULT_GAME_SETTINGS)
 
   // Debug player updates
   useEffect(() => {
@@ -48,6 +53,28 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
     })
   }, [players, game?.players, isConnected])
 
+  // Poll for updates when in lobby (as backup to socket updates)
+  useEffect(() => {
+    if (!game?.gameId || game.phase !== 'lobby' || !refreshGame) return
+
+    console.log('🔄 Setting up lobby polling for game:', game.gameId)
+
+    // Poll every 2 seconds to check for new players
+    const pollInterval = setInterval(async () => {
+      try {
+        console.log('🔄 Polling for lobby updates...')
+        await refreshGame()
+      } catch (error) {
+        console.error('❌ Lobby polling error:', error)
+      }
+    }, 2000) // Poll every 2 seconds
+
+    return () => {
+      console.log('🧹 Cleaning up lobby polling')
+      clearInterval(pollInterval)
+    }
+  }, [game?.gameId, game?.phase, refreshGame])
+
   // Get real-time countdown from backend
   useEffect(() => {
     if (game?.timeLeft !== undefined) {
@@ -55,10 +82,19 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
     }
   }, [game?.timeLeft])
 
-  // Initialize isPublic from game data
+  // Initialize isPublic and settings from game data
   useEffect(() => {
     if (game) {
       setIsPublic(game.isPublic || false)
+      if (game.settings) {
+        setGameSettings({
+          nightPhaseDuration: game.settings.nightPhaseDuration || 30,
+          resolutionPhaseDuration: game.settings.resolutionPhaseDuration || 10,
+          taskPhaseDuration: game.settings.taskPhaseDuration || 30,
+          votingPhaseDuration: game.settings.votingPhaseDuration || 10,
+          maxTaskCount: game.settings.maxTaskCount || 4,
+        })
+      }
     }
   }, [game])
 
@@ -87,6 +123,34 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
       console.error('Error toggling visibility:', error)
     } finally {
       setIsTogglingVisibility(false)
+    }
+  }
+
+  // Update game settings
+  const handleUpdateSettings = async (newSettings: FullGameSettings) => {
+    if (!game?.gameId || !playerAddress || !isCreator) return
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/game/${game.gameId}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          creatorAddress: playerAddress,
+          settings: newSettings
+        })
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        setGameSettings(newSettings)
+        console.log('✅ Game settings updated successfully')
+      } else {
+        console.error('❌ Failed to update settings:', data.error)
+        alert(`Failed to update settings: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error updating settings:', error)
+      alert('Failed to update settings. Please try again.')
     }
   }
 
@@ -395,7 +459,7 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
           </div>
         )}
 
-        {/* Chat Toggle, Fullscreen & Leave Game (All Players) */}
+        {/* Chat Toggle, Fullscreen, Settings & Leave Game */}
         <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
           <Button
             onClick={() => setChatEnabled(!chatEnabled)}
@@ -409,6 +473,16 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
             variant="button"
             className="text-xs sm:text-sm"
           />
+          {isCreator && (
+            <Button
+              onClick={() => setShowSettingsDialog(true)}
+              variant="pixel"
+              size="pixel"
+              className="text-xs sm:text-sm"
+            >
+              ⚙️ SETTINGS
+            </Button>
+          )}
           <Button
             onClick={handleLeaveGameClick}
             variant="outline"
@@ -480,10 +554,23 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
         <Card className="p-3 sm:p-4 bg-[#111111]/50 border border-[#2a2a2a]">
           <div className="text-xs sm:text-sm font-press-start pixel-text-3d-white text-center space-y-1">
             <div>🎮 Share the room code with friends to join</div>
-            <div>⚡ Game starts automatically when 4 players join</div>
+            <div>⚡ Game starts automatically when {game?.minPlayers || 4} players join</div>
             <div>🔍 Each player gets a unique role (ASUR, DEVA, RISHI, MANAV)</div>
           </div>
         </Card>
+
+        {/* Settings Dialog (Creator Only) */}
+        {isCreator && (
+          <LobbySettingsDialog
+            open={showSettingsDialog}
+            onOpenChange={setShowSettingsDialog}
+            settings={gameSettings}
+            onSettingsChange={handleUpdateSettings}
+            onSave={() => {
+              console.log('Settings saved from lobby:', gameSettings);
+            }}
+          />
+        )}
       </div>
     </div>
   )

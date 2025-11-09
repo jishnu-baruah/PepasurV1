@@ -74,6 +74,41 @@ const gameSchema = new mongoose.Schema({
     type: Map,
     of: String, // transaction hash
     default: new Map()
+  },
+  settings: {
+    type: {
+      nightPhaseDuration: {
+        type: Number,
+        default: () => parseInt(process.env.DEFAULT_NIGHT_PHASE_DURATION) || 30,
+        min: 1,
+        max: 120
+      },
+      resolutionPhaseDuration: {
+        type: Number,
+        default: () => parseInt(process.env.DEFAULT_RESOLUTION_PHASE_DURATION) || 10,
+        min: 1,
+        max: 60
+      },
+      taskPhaseDuration: {
+        type: Number,
+        default: () => parseInt(process.env.DEFAULT_TASK_PHASE_DURATION) || 30,
+        min: 1,
+        max: 180
+      },
+      votingPhaseDuration: {
+        type: Number,
+        default: () => parseInt(process.env.DEFAULT_VOTING_PHASE_DURATION) || 10,
+        min: 1,
+        max: 60
+      },
+      maxTaskCount: {
+        type: Number,
+        default: () => parseInt(process.env.DEFAULT_MAX_TASK_COUNT) || 4,
+        min: 2,
+        max: 20
+      }
+    },
+    default: {}
   }
 }, {
   timestamps: true,
@@ -82,7 +117,7 @@ const gameSchema = new mongoose.Schema({
 });
 
 // Virtual field for player count
-gameSchema.virtual('playerCount').get(function() {
+gameSchema.virtual('playerCount').get(function () {
   return this.currentPlayers ? this.currentPlayers.length : 0;
 });
 
@@ -96,7 +131,7 @@ gameSchema.index({ createdAt: 1 }, { expireAfterSeconds: 900, partialFilterExpre
 gameSchema.index({ updatedAt: 1 }, { expireAfterSeconds: 86400, partialFilterExpression: { status: 'completed' } });
 
 // Static method to get public lobbies (excluding full rooms)
-gameSchema.statics.getPublicLobbies = function() {
+gameSchema.statics.getPublicLobbies = function () {
   return this.find({
     isPublic: true,
     isReady: true,
@@ -104,13 +139,13 @@ gameSchema.statics.getPublicLobbies = function() {
     // Only return lobbies that aren't full
     $expr: { $lt: [{ $size: '$currentPlayers' }, '$minPlayers'] }
   })
-  .select('gameId roomCode creator creatorName stakeAmount minPlayers maxPlayers currentPlayers playerCount createdAt')
-  .sort({ createdAt: -1 })
-  .lean();
+    .select('gameId roomCode creator creatorName stakeAmount minPlayers maxPlayers currentPlayers playerCount createdAt')
+    .sort({ createdAt: -1 })
+    .lean();
 };
 
 // Static method to toggle visibility
-gameSchema.statics.toggleVisibility = async function(gameId, creatorAddress) {
+gameSchema.statics.toggleVisibility = async function (gameId, creatorAddress) {
   const game = await this.findOne({ gameId });
 
   if (!game) {
@@ -132,7 +167,7 @@ gameSchema.statics.toggleVisibility = async function(gameId, creatorAddress) {
 };
 
 // Instance method to add player
-gameSchema.methods.addPlayer = function(playerAddress) {
+gameSchema.methods.addPlayer = function (playerAddress) {
   if (this.currentPlayers.includes(playerAddress)) {
     throw new Error('Player already in game');
   }
@@ -146,7 +181,7 @@ gameSchema.methods.addPlayer = function(playerAddress) {
 };
 
 // Instance method to remove player
-gameSchema.methods.removePlayer = function(playerAddress) {
+gameSchema.methods.removePlayer = function (playerAddress) {
   const index = this.currentPlayers.indexOf(playerAddress);
   if (index > -1) {
     this.currentPlayers.splice(index, 1);

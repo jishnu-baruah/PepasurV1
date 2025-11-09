@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, memo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { PixelInput } from "@/components/ui/pixel-input"
@@ -8,6 +8,8 @@ import { useSocket } from "@/contexts/SocketContext"
 import { Player } from "@/hooks/useGame" // Add this line
 import TaskComponent from "./task-component"
 import ColoredPlayerName from "@/components/colored-player-name"
+import TipBar from "@/components/tip-bar"
+import FullscreenToggle from "@/components/fullscreen-toggle"
 
 interface DiscussionPhaseScreenProps {
   onComplete: () => void
@@ -18,13 +20,42 @@ interface DiscussionPhaseScreenProps {
   players?: Player[] // Add players prop
 }
 
+// Helper function to get color for player names
+const getPlayerColor = (playerName: string): string => {
+  if (playerName.includes('Red')) return 'text-red-400'
+  if (playerName.includes('Blue')) return 'text-blue-400'
+  if (playerName.includes('Purple')) return 'text-purple-400'
+  if (playerName.includes('Yellow')) return 'text-yellow-400'
+  return 'text-gray-300'
+}
+
+// Helper function to colorize player names in message text
+const colorizePlayerNames = (text: string): JSX.Element => {
+  // Match player aliases like 0xRed, 0xBlue, etc.
+  const parts = text.split(/(0x(?:Red|Blue|Purple|Yellow))/g)
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        const color = getPlayerColor(part)
+        return (
+          <span key={index} className={color}>
+            {part}
+          </span>
+        )
+      })}
+    </>
+  )
+}
 
 
-export default function DiscussionPhaseScreen({ onComplete, game, gameId, currentPlayerAddress, submitTaskAnswer, players }: DiscussionPhaseScreenProps) {
+
+function DiscussionPhaseScreen({ onComplete, game, gameId, currentPlayerAddress, submitTaskAnswer, players }: DiscussionPhaseScreenProps) {
   const [timeLeft, setTimeLeft] = useState(30) // 30 seconds for discussion
   const [message, setMessage] = useState("")
   const [activeTab, setActiveTab] = useState<'chat' | 'tasks'>('chat')
-  const [hasTransitioned, setHasTransitioned] = useState(false)
+  const announcementSent = useRef(false)
+  const chatEndRef = useRef<HTMLDivElement>(null)
   const { socket, sendChatMessage } = useSocket()
 
   const [messages, setMessages] = useState<Array<{
@@ -32,21 +63,42 @@ export default function DiscussionPhaseScreen({ onComplete, game, gameId, curren
     playerAddress: string
     message: string
     timestamp: number
+    type?: string
+    taskPlayerAddress?: string
+    avatarUrl?: string
+    playerAlias?: string
+    playerName?: string
   }>>([])
 
   // Listen for chat messages
   useEffect(() => {
     if (socket && gameId) {
       const handleChatMessage = (data: any) => {
-        console.log('📨 Received chat message:', data)
+        console.log('💬 CHAT MESSAGE RECEIVED (discussion-phase):', {
+          raw: data,
+          type: data.type,
+          message: data.message,
+          hasMessage: !!data.message,
+          messageLength: data.message?.length || 0,
+          avatarUrl: data.avatarUrl,
+          playerAlias: data.playerAlias,
+          taskPlayerAddress: data.taskPlayerAddress
+        })
+
         if (data.gameId === gameId) {
-          console.log('📨 Adding message to UI:', data.message)
-          setMessages(prev => [...prev, {
+          const storedMessage = {
             id: `${data.playerAddress}-${data.timestamp}`,
             playerAddress: data.playerAddress,
             message: data.message,
-            timestamp: data.timestamp
-          }])
+            timestamp: data.timestamp,
+            type: data.type,
+            taskPlayerAddress: data.taskPlayerAddress,
+            avatarUrl: data.avatarUrl,
+            playerAlias: data.playerAlias,
+            playerName: data.playerName
+          }
+          console.log('✅ Message for this game, storing with ALL fields:', storedMessage)
+          setMessages(prev => [...prev, storedMessage])
         } else {
           console.log('📨 Message gameId mismatch:', data.gameId, 'vs', gameId)
         }
@@ -59,6 +111,28 @@ export default function DiscussionPhaseScreen({ onComplete, game, gameId, curren
       }
     }
   }, [socket, gameId])
+
+  // Add automatic announcement when phase starts (only once)
+  useEffect(() => {
+    if (gameId && !announcementSent.current) {
+      // Add system announcement to chat
+      const announcement = {
+        id: `system-${Date.now()}`,
+        playerAddress: 'SYSTEM',
+        message: '💡 NON-ASUR PLAYERS: Complete tasks to win! Discuss and share information to identify the ASUR.',
+        timestamp: Date.now(),
+        type: 'system',
+        playerName: 'ANNOUNCEMENT'
+      }
+      setMessages(prev => [...prev, announcement])
+      announcementSent.current = true
+    }
+  }, [gameId])
+
+  // Auto-scroll to latest message
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   // Real-time timer sync with backend
   useEffect(() => {
@@ -94,20 +168,114 @@ export default function DiscussionPhaseScreen({ onComplete, game, gameId, curren
 
 
 
-  // Get current player's task count from game state
-  const currentPlayerTaskCount = game?.taskCounts?.[currentPlayerAddress || ''] || 0
-  const maxTaskCount = 4 // Global task count target
+  // Get current player's task count from game state (memoized to prevent re-renders)
+  const currentPlayerTaskCount = useMemo(() => {
+    return game?.taskCounts?.[currentPlayerAddress || ''] || 0
+  }, [game?.taskCounts, currentPlayerAddress])
 
-  // Log task count updates for debugging
+  // Use configured max task count or default to 4
+  const maxTaskCount = game?.settings?.maxTaskCount || 4
+
+  // SIMPLE SOLUTION: Use refs to store stable values that only update when data actually changes
+  const lastTaskCountsString = useRef<string>('')
+  const stableCollectiveCount = useRef<number>(0)
+  const stableTaskCountsDisplay = useRef<any>(null)
+
+  // Update stable values only when stringified data actually changes
   useEffect(() => {
-    if (currentPlayerAddress && game?.taskCounts) {
-      console.log(`📊 Current player task count: ${currentPlayerTaskCount}/${maxTaskCount}`)
+    if (!game?.taskCounts) return
+
+    const currentString = JSON.stringify(game.taskCounts)
+
+    // Only update if the stringified value is different
+    if (currentString !== lastTaskCountsString.current) {
+      lastTaskCountsString.current = currentString
+
+      // Calculate collective count
+      const total = Object.values(game.taskCounts).reduce((sum: number, count) => {
+        const numCount = typeof count === 'number' ? count : 0
+        return sum + numCount
+      }, 0)
+
+      stableCollectiveCount.current = total
+
+      // Calculate display data
+      if (players && players.length > 0) {
+        stableTaskCountsDisplay.current = {
+          totalTasks: total,
+          maxTasks: maxTaskCount,
+          progress: Math.min(total / maxTaskCount, 1),
+          players: players.map(player => {
+            const taskCount = game.taskCounts?.[player.address!] || 0
+            return {
+              address: player.address,
+              name: player.name,
+              avatar: player.avatar,
+              taskCount,
+              hasContributed: taskCount > 0
+            }
+          })
+        }
+      }
     }
-  }, [currentPlayerTaskCount, maxTaskCount, currentPlayerAddress, game?.taskCounts])
+  }, [game?.taskCounts, players, maxTaskCount])
+
+  // Use the stable ref values instead of computed ones
+  const collectiveTaskCount = stableCollectiveCount.current
+  const taskCountsDisplay = stableTaskCountsDisplay.current
+
+  // Memoize task tab styling to prevent flickering (use collective count)
+  const taskTabStyling = useMemo(() => {
+    if (activeTab === 'tasks') {
+      return 'bg-[#4A8C4A] border-[#4A8C4A] pixel-text-3d-white tab-active'
+    } else if (collectiveTaskCount >= maxTaskCount) {
+      return 'bg-green-600/30 border-green-400 text-green-300 hover:bg-green-600/40'
+    } else if (collectiveTaskCount > 0) {
+      return 'bg-yellow-600/30 border-yellow-400 text-yellow-300 hover:bg-yellow-600/40'
+    } else {
+      return 'bg-[#A259FF]/20 border-[#A259FF] pixel-text-3d-white hover:bg-[#A259FF]/30'
+    }
+  }, [activeTab, collectiveTaskCount, maxTaskCount])
+
+  // Memoize task count text to prevent re-renders (use collective count)
+  const taskCountText = useMemo(() => {
+    return `🎯 TASKS (${collectiveTaskCount}/${maxTaskCount})`
+  }, [collectiveTaskCount, maxTaskCount])
 
   return (
-    <div className="min-h-screen gaming-bg pt-8 p-2 sm:p-4">
-      <div className="max-w-7xl mx-auto h-screen flex flex-col">
+    <div className="min-h-screen gaming-bg flex flex-col">
+      {/* Full-width header with buttons */}
+      <div className="w-full bg-black/60 border-b border-white/20 py-2 px-4 flex justify-between items-center z-50">
+        <div className="flex gap-2">
+          <button
+            onClick={() => window.location.reload()}
+            className="w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded flex items-center justify-center"
+            title="Refresh Game State"
+          >
+            🔄
+          </button>
+          <div className="w-8 h-8 bg-black/60 rounded flex items-center justify-center border border-white/20">
+            <FullscreenToggle variant="icon" className="text-white text-sm" />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${socket ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+          <div className="text-xs text-gray-400 font-press-start">{socket ? 'CONNECTED' : 'DISCONNECTED'}</div>
+        </div>
+      </div>
+
+      {/* Tips */}
+      <TipBar
+        phase="night"
+        tips={[
+          "<strong>Complete tasks</strong> to help non-ASUR players win",
+          "Use <strong>chat</strong> to discuss and share information",
+          "Pay attention to who completes tasks",
+          "ASURs may pretend to help"
+        ]}
+      />
+
+      <div className="max-w-7xl mx-auto h-screen flex flex-col pt-2 p-2 sm:p-4">
         {/* Header */}
         <div className="p-2 sm:p-3 lg:p-4 border-b-2 border-[#4A8C4A] bg-gradient-to-r from-[#0A0A0A] to-[#1A1A1A] relative">
           <div className="flex flex-col sm:flex-row justify-between items-center space-y-1 sm:space-y-0">
@@ -124,29 +292,33 @@ export default function DiscussionPhaseScreen({ onComplete, game, gameId, curren
           </div>
 
           {/* Tabs */}
-          <div className="flex space-x-2 mt-3 sm:mt-4">
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={`px-3 sm:px-4 py-2 font-press-start text-xs sm:text-sm border-2 transition-all ${activeTab === 'chat'
-                ? 'bg-[#4A8C4A] border-[#4A8C4A] pixel-text-3d-white tab-active'
-                : 'bg-[#A259FF]/20 border-[#A259FF] pixel-text-3d-white hover:bg-[#A259FF]/30'
-                }`}
-            >
-              💬 CHAT
-            </button>
-            <button
-              onClick={() => setActiveTab('tasks')}
-              className={`px-3 sm:px-4 py-2 font-press-start text-xs sm:text-sm border-2 transition-all ${activeTab === 'tasks'
-                ? 'bg-[#4A8C4A] border-[#4A8C4A] pixel-text-3d-white tab-active'
-                : currentPlayerTaskCount >= maxTaskCount
-                  ? 'bg-green-600/30 border-green-400 text-green-300 hover:bg-green-600/40'
-                  : currentPlayerTaskCount > 0
-                    ? 'bg-yellow-600/30 border-yellow-400 text-yellow-300 hover:bg-yellow-600/40'
-                    : 'bg-[#A259FF]/20 border-[#A259FF] pixel-text-3d-white hover:bg-[#A259FF]/30'
-                }`}
-            >
-              🎯 TASKS ({currentPlayerTaskCount}/{maxTaskCount})
-            </button>
+          <div className="flex items-center space-x-3 mt-3 sm:mt-4">
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setActiveTab('chat')}
+                className={`px-3 sm:px-4 py-2 font-press-start text-xs sm:text-sm border-2 transition-all ${activeTab === 'chat'
+                  ? 'bg-[#4A8C4A] border-[#4A8C4A] pixel-text-3d-white tab-active'
+                  : 'bg-[#A259FF]/20 border-[#A259FF] pixel-text-3d-white hover:bg-[#A259FF]/30'
+                  }`}
+              >
+                💬 CHAT
+              </button>
+              <button
+                onClick={() => setActiveTab('tasks')}
+                className={`px-3 sm:px-4 py-2 font-press-start text-xs sm:text-sm border-2 transition-all ${taskTabStyling}`}
+              >
+                {taskCountText}
+              </button>
+            </div>
+
+            {/* Hint text */}
+            <div className="text-xs text-yellow-300 font-bold hidden sm:block animate-bounce">
+              {activeTab === 'chat' ? (
+                <span>← Switch to TASKS to complete challenges</span>
+              ) : (
+                <span>← Switch to CHAT to discuss with others</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -163,89 +335,155 @@ export default function DiscussionPhaseScreen({ onComplete, game, gameId, curren
                 ) : (
                   messages.map((msg, index) => {
                     const isTaskAnnouncement = msg.type === 'task_success' || msg.type === 'task_failure'
-                    // For task announcements, use taskPlayerAddress to find the player
-                    const messagePlayer = players?.find(p => p.address === (isTaskAnnouncement ? msg.taskPlayerAddress : msg.playerAddress))
+                    const isSystemMessage = msg.playerAddress === 'SYSTEM'
+
+                    // For task announcements, use backend-provided data first, fallback to finding player
+                    const taskPlayerName = isTaskAnnouncement ? (msg.playerAlias || msg.playerName) : null
+                    const taskPlayerAvatar = isTaskAnnouncement ? msg.avatarUrl : null
+
+                    // For regular messages, find the player
+                    const messagePlayer = !isTaskAnnouncement ? players?.find(p => p.address === msg.playerAddress) : null
                     const isCurrentPlayer = msg.playerAddress === currentPlayerAddress && msg.playerAddress !== 'SYSTEM'
-                    const isSystemMessage = msg.type === 'system' || msg.playerAddress === 'SYSTEM'
+
+                    // Determine display name
+                    let displayName = ''
+                    if (isTaskAnnouncement) {
+                      displayName = `${taskPlayerName} ${msg.type === 'task_success' ? 'succeeded' : 'failed'}`
+                    } else if (msg.playerAddress === 'SYSTEM') {
+                      displayName = msg.playerName || 'SYSTEM'
+                    } else if (isCurrentPlayer) {
+                      // Show "0xColor (you)" instead of just "You"
+                      displayName = `${messagePlayer?.name || 'Player'} (you)`
+                    } else {
+                      displayName = messagePlayer?.name || msg.playerName || 'Player'
+                    }
+
+                    // DEBUG: Comprehensive message rendering logging
+                    if (isTaskAnnouncement) {
+                      console.log('🎨 RENDERING TASK ANNOUNCEMENT:', {
+                        messageId: msg.id,
+                        type: msg.type,
+                        hasMessage: !!msg.message,
+                        messageLength: msg.message?.length || 0,
+                        messageContent: msg.message,
+                        messageTrimmed: msg.message?.trim(),
+                        willRenderMessage: msg.message && msg.message.trim() !== '',
+                        taskPlayerName,
+                        taskPlayerAvatar,
+                        displayName,
+                        rawMsg: msg
+                      })
+                    }
 
                     return (
-                      <div key={`${msg.id}-${index}`} className={`font-press-start text-xs sm:text-sm md:text-base pixel-text-3d-white p-2 sm:p-3 md:p-4 border chat-message-glow chat-message-enter ${isTaskAnnouncement
+                      <div key={`${msg.id}-${index}`} className={`font-press-start pixel-text-3d-white border ${isTaskAnnouncement
                         ? msg.type === 'task_success'
-                          ? 'bg-green-900/40 border-green-500/50'
-                          : 'bg-red-900/40 border-red-500/50'
+                          ? 'task-announcement-epic task-announcement-glow bg-green-900/60 border-green-400 border-2 shadow-lg shadow-green-500/50 p-4 sm:p-5 md:p-6 text-sm sm:text-base md:text-lg'
+                          : 'task-announcement-epic task-announcement-glow-red bg-red-900/60 border-red-400 border-2 shadow-lg shadow-red-500/50 p-4 sm:p-5 md:p-6 text-sm sm:text-base md:text-lg'
                         : isSystemMessage
-                          ? 'bg-blue-900/40 border-blue-500/50'
-                          : 'bg-[#1A1A1A]/80 border-[#2A2A2A]'
+                          ? 'chat-message-enter chat-message-glow bg-blue-900/40 border-blue-500/50 p-2 sm:p-3 md:p-4 text-xs sm:text-sm md:text-base'
+                          : 'chat-message-enter chat-message-glow bg-[#1A1A1A]/80 border-[#2A2A2A] p-2 sm:p-3 md:p-4 text-xs sm:text-sm md:text-base'
                         }`}>
-                        <div className="flex items-center space-x-2">
-                          {/* Player avatar - show for all message types */}
-                          {(messagePlayer?.avatar || msg.avatarUrl) && (messagePlayer?.avatar?.startsWith('http') || msg.avatarUrl?.startsWith('http')) ? (
-                            <img
-                              src={messagePlayer?.avatar || msg.avatarUrl}
-                              alt={messagePlayer?.name || msg.playerName || 'Player'}
-                              className="w-6 h-6 sm:w-8 sm:h-8 rounded-none object-cover border border-gray-600"
-                              style={{ imageRendering: 'pixelated' }}
-                            />
-                          ) : (
-                            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-700 flex items-center justify-center text-xs">?</div>
-                          )}
-                          <span className={isCurrentPlayer ? "text-[#4A8C4A]" : ""}>
-                            {isTaskAnnouncement ? (
-                              messagePlayer ? (
-                                <ColoredPlayerName
-                                  playerName={messagePlayer.name}
+                        <div className={`flex items-center space-x-2 ${isTaskAnnouncement ? 'sm:space-x-3' : ''}`}>
+                          {/* Player avatar - BIGGER for announcements */}
+                          {!isSystemMessage && (
+                            <>
+                              {(isTaskAnnouncement ? taskPlayerAvatar : messagePlayer?.avatar) ? (
+                                <img
+                                  src={isTaskAnnouncement ? taskPlayerAvatar! : messagePlayer!.avatar}
+                                  alt={displayName}
+                                  className={`rounded-none object-cover border ${isTaskAnnouncement
+                                    ? 'w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 border-2 border-yellow-400 shadow-lg'
+                                    : 'w-6 h-6 sm:w-8 sm:h-8 border-gray-600'
+                                    }`}
+                                  style={{ imageRendering: 'pixelated' }}
                                 />
                               ) : (
-                                <span className={msg.type === 'task_success' ? 'text-green-400' : 'text-red-400'}>
-                                  Player
-                                </span>
-                              )
-                            ) : msg.playerAddress === 'SYSTEM' ? (
-                              <span className="text-yellow-400">🤖 SYSTEM</span>
-                            ) : isCurrentPlayer ? 'You' : (
-                              <ColoredPlayerName
-                                playerName={messagePlayer?.name || msg.playerName || 'Player'}
-                              />
-                            )}
-                          </span>
-                          <span className="text-gray-400 text-xs">
-                            {new Date(msg.timestamp).toLocaleTimeString()}
-                          </span>
+                                <div className={`bg-gray-700 flex items-center justify-center ${isTaskAnnouncement
+                                  ? 'w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 text-xl sm:text-2xl'
+                                  : 'w-6 h-6 sm:w-8 sm:h-8 text-xs'
+                                  }`}>
+                                  {isTaskAnnouncement ? (msg.type === 'task_success' ? '✓' : '✗') : '?'}
+                                </div>
+                              )}
+                            </>
+                          )}
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className={`font-bold ${isCurrentPlayer ? getPlayerColor(displayName) : isTaskAnnouncement ? (msg.type === 'task_success' ? 'text-green-300 drop-shadow-[0_2px_4px_rgba(34,197,94,0.5)]' : 'text-red-300 drop-shadow-[0_2px_4px_rgba(239,68,68,0.5)]') : ''}`}>
+                                {isTaskAnnouncement ? (
+                                  <span className="uppercase tracking-wide">🎮 TASK RESULT 🎮</span>
+                                ) : msg.playerAddress === 'SYSTEM' ? (
+                                  <span className="text-yellow-400">{displayName}</span>
+                                ) : (
+                                  <span className={getPlayerColor(displayName)}>
+                                    {displayName}
+                                  </span>
+                                )}
+                              </span>
+                              <span className={`text-xs ${isTaskAnnouncement ? 'text-gray-300' : 'text-gray-400'}`}>
+                                {new Date(msg.timestamp).toLocaleTimeString()}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div className={`mt-1 ${isTaskAnnouncement ? (msg.type === 'task_success' ? 'text-green-300' : 'text-red-300') : ''}`}>
-                          {msg.message}
-                        </div>
+                        {msg.message && msg.message.trim() !== '' && (
+                          <div className={`mt-2 leading-relaxed ${isTaskAnnouncement
+                            ? msg.type === 'task_success'
+                              ? 'text-green-200 font-semibold text-sm sm:text-base md:text-lg drop-shadow-lg'
+                              : 'text-red-200 font-semibold text-sm sm:text-base md:text-lg drop-shadow-lg'
+                            : ''
+                            }`}>
+                            {isTaskAnnouncement ? colorizePlayerNames(msg.message) : msg.message}
+                          </div>
+                        )}
                       </div>
                     )
                   })
                 )}
+                <div ref={chatEndRef} />
               </div>
             </>
           ) : (
             /* Tasks Tab - Real Task Component */
-            <div className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto min-h-0">
-              {/* Task Counts Display */}
-              {game?.taskCounts && players && players.length > 0 && (
-                <div className="mb-4 p-3 bg-gray-900/50 border border-gray-600 rounded-none" style={{ minHeight: '120px' }}>
-                  <h4 className="text-sm font-press-start text-yellow-400 mb-2">📊 TASK COUNTS</h4>
+            <div className="flex-1 p-3 sm:p-4 md:p-6 min-h-0">
+              {/* Collective Task Progress Display */}
+              {taskCountsDisplay && (
+                <div className="mb-4 p-3 bg-gray-900/50 border border-gray-600 rounded-none">
+                  <h4 className="text-sm font-press-start text-yellow-400 mb-3">📊 COLLECTIVE PROGRESS</h4>
+
+                  {/* Progress Bar */}
+                  <div className="mb-3">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs text-gray-300">Tasks Completed</span>
+                      <span className={`text-sm font-press-start ${taskCountsDisplay.totalTasks >= taskCountsDisplay.maxTasks ? 'text-green-400' : 'text-yellow-400'}`}>
+                        {taskCountsDisplay.totalTasks}/{taskCountsDisplay.maxTasks}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-700 h-2 rounded-none">
+                      <div
+                        className={`h-2 rounded-none transition-all duration-300 ${taskCountsDisplay.totalTasks >= taskCountsDisplay.maxTasks ? 'bg-green-500' : 'bg-yellow-500'}`}
+                        style={{ width: `${taskCountsDisplay.progress * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Player Contributions */}
                   <div className="grid grid-cols-2 gap-2">
-                    {players.map(player => {
-                      const taskCount = game.taskCounts[player.address] || 0;
-                      return (
-                        <div key={player.address} className="flex items-center space-x-2 text-xs h-6">
-                          <img
-                            src={player.avatar}
-                            alt={player.name}
-                            className="w-4 h-4 rounded-none object-cover flex-shrink-0"
-                            style={{ imageRendering: 'pixelated' }}
-                          />
-                          <ColoredPlayerName playerName={player.name} />
-                          <span className={`font-bold ml-auto flex-shrink-0 ${taskCount > 0 ? 'text-green-400' : 'text-gray-400'}`}>
-                            {taskCount}
-                          </span>
-                        </div>
-                      );
-                    })}
+                    {taskCountsDisplay?.players?.map((player: any) => (
+                      <div key={player.address} className="flex items-center space-x-2 text-xs h-6">
+                        <img
+                          src={player.avatar}
+                          alt={player.name}
+                          className="w-4 h-4 rounded-none object-cover flex-shrink-0"
+                          style={{ imageRendering: 'pixelated' }}
+                        />
+                        <ColoredPlayerName playerName={player.name} />
+                        <span className={`ml-auto flex-shrink-0 ${player.hasContributed ? 'text-green-400' : 'text-gray-400'}`}>
+                          {player.hasContributed ? '✓' : '○'}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -296,3 +534,7 @@ export default function DiscussionPhaseScreen({ onComplete, game, gameId, curren
     </div>
   )
 }
+
+// SIMPLIFIED: No complex memo - let React handle re-renders
+// The ref-based approach above ensures flickering won't happen regardless of re-renders
+export default DiscussionPhaseScreen
