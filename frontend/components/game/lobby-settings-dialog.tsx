@@ -20,6 +20,7 @@ export interface FullGameSettings {
   taskPhaseDuration: number       // seconds
   votingPhaseDuration: number     // seconds
   maxTaskCount: number            // total tasks needed for non-asur win
+  isPublic?: boolean              // lobby visibility
 }
 
 export const DEFAULT_GAME_SETTINGS: FullGameSettings = {

@@ -62,7 +62,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
 
   const [stakeAmountInput, setStakeAmountInput] = useState('0.001');
   const [isPublic, setIsPublic] = useState(false);
-  const [gaslessMode, setGaslessMode] = useState(false); // Temporarily disable gasless
+  const [gaslessMode, setGaslessMode] = useState(true); // Gasless mode enabled by default
   const [gameSettings, setGameSettings] = useState<FullGameSettings>(DEFAULT_GAME_SETTINGS);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
 

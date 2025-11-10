@@ -5,7 +5,12 @@ import GifLoader from "@/components/common/gif-loader"
 import RetroAnimation from "@/components/common/retro-animation"
 import { soundService } from "@/services/SoundService"
 
-export default function LoaderScreen() {
+interface LoaderScreenProps {
+  message?: string
+  subMessage?: string
+}
+
+export default function LoaderScreen({ message, subMessage }: LoaderScreenProps = {}) {
   const [dots, setDots] = useState("")
   const [messageIndex, setMessageIndex] = useState(0)
 
@@ -73,8 +78,13 @@ export default function LoaderScreen() {
           <div className="text-sm sm:text-base lg:text-lg font-press-start text-[#5FA85F] opacity-90 transition-opacity duration-500 text-center px-4" style={{
             textShadow: '0 0 10px rgba(74, 140, 74, 0.8), 0 0 20px rgba(74, 140, 74, 0.4)'
           }}>
-            {dynamicMessages[messageIndex]}{dots}
+            {message || dynamicMessages[messageIndex]}{dots}
           </div>
+          {subMessage && (
+            <div className="text-xs sm:text-sm font-press-start text-[#5FA85F]/70 mt-2 text-center px-4">
+              {subMessage}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -8,7 +8,6 @@ import { Game } from "@/services/api"
 import { soundService } from "@/services/SoundService"
 import ColoredPlayerName from "@/components/game/colored-player-name"
 import TipBar from "@/components/common/tip-bar"
-import ScreenHeader from "@/components/common/screen-header"
 import FullscreenToggle from "@/components/common/fullscreen-toggle"
 
 interface VotingScreenProps {
@@ -237,116 +236,97 @@ export default function VotingScreen({ players, game, currentPlayer, submitVote,
     })
 
     return (
-      <div className="min-h-screen gaming-bg flex flex-col">
-        {/* Full-width header with buttons */}
-        <div className="w-full bg-black/60 border-b border-white/20 py-2 px-4 flex justify-between items-center z-50">
-          <div className="flex gap-2">
-            <button
-              onClick={() => window.location.reload()}
-              className="w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded flex items-center justify-center"
-              title="Refresh Game State"
-            >
-              🔄
-            </button>
-            <div className="w-8 h-8 bg-black/60 rounded flex items-center justify-center border border-white/20">
-              <FullscreenToggle variant="icon" className="text-white text-sm" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-            <div className="text-xs text-gray-400 font-press-start">{isConnected ? 'CONNECTED' : 'DISCONNECTED'}</div>
-          </div>
-        </div>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="w-full max-w-2xl p-6 sm:p-8 bg-card border-4 border-destructive text-center">
+          <div className="space-y-8">
+            {/* Main Avatar Section - Only show if someone was eliminated AND votingResult confirms it */}
+            {eliminatedPlayer && (votingResult === 'INNOCENT_ELIMINATED' || votingResult === 'ASUR_ELIMINATED') && (
+              <div className="space-y-6">
 
-        <div className="flex-1 flex items-center justify-center p-4">
-          <Card className="w-full max-w-2xl p-6 sm:p-8 bg-card border-4 border-destructive text-center">
-            <div className="space-y-8">
-              {/* Main Avatar Section - Only show if someone was eliminated AND votingResult confirms it */}
-              {eliminatedPlayer && (votingResult === 'INNOCENT_ELIMINATED' || votingResult === 'ASUR_ELIMINATED') && (
-                <div className="space-y-6">
+                {/* Context-specific header based on who was eliminated */}
+                <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-red pixel-text-3d-float">
+                  {votingResult === 'ASUR_ELIMINATED' ? 'ASUR ELIMINATED!' : 'INNOCENT ELIMINATED!'}
+                </div>
 
-                  {/* Context-specific header based on who was eliminated */}
-                  <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-red pixel-text-3d-float">
-                    {votingResult === 'ASUR_ELIMINATED' ? 'ASUR ELIMINATED!' : 'INNOCENT ELIMINATED!'}
-                  </div>
-
-                  {/* Eliminated Player Avatar */}
-                  <div className="flex justify-center">
-                    {eliminatedPlayerAvatar && eliminatedPlayerAvatar.startsWith('http') ? (
-                      <img
-                        src={eliminatedPlayerAvatar}
-                        alt={eliminatedPlayer.name}
-                        className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 xl:w-56 xl:h-56 object-cover rounded-none border-2 border-[#666666] shadow-lg"
-                        style={{ imageRendering: 'pixelated' }}
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          e.currentTarget.nextSibling.style.display = 'flex';
-                        }}
-                      />
-                    ) : null}
-                    <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 xl:w-56 xl:h-56 bg-[#333333] border-2 border-[#666666] flex items-center justify-center shadow-lg" style={{ display: eliminatedPlayerAvatar && eliminatedPlayerAvatar.startsWith('http') ? 'none' : 'flex' }}>
-                      <span className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl">?</span>
-                    </div>
-                  </div>
-
-                  {/* Player Info */}
-                  <div className="space-y-2">
-                    <div className="text-xl sm:text-2xl md:text-3xl font-press-start">
-                      <ColoredPlayerName playerName={eliminatedPlayer.name} />
-                    </div>
-                    {eliminatedPlayer.role && (
-                      <div className="text-lg sm:text-xl md:text-2xl font-press-start pixel-text-3d-white">Role: {eliminatedPlayer.role}</div>
-                    )}
+                {/* Eliminated Player Avatar */}
+                <div className="flex justify-center">
+                  {eliminatedPlayerAvatar && eliminatedPlayerAvatar.startsWith('http') ? (
+                    <img
+                      src={eliminatedPlayerAvatar}
+                      alt={eliminatedPlayer.name}
+                      className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 xl:w-56 xl:h-56 object-cover rounded-none border-2 border-[#666666] shadow-lg"
+                      style={{ imageRendering: 'pixelated' }}
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        const nextElement = e.currentTarget.nextSibling as HTMLElement | null;
+                        if (nextElement && 'style' in nextElement) {
+                          nextElement.style.display = 'flex';
+                        }
+                      }}
+                    />
+                  ) : null}
+                  <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 xl:w-56 xl:h-56 bg-[#333333] border-2 border-[#666666] flex items-center justify-center shadow-lg" style={{ display: eliminatedPlayerAvatar && eliminatedPlayerAvatar.startsWith('http') ? 'none' : 'flex' }}>
+                    <span className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl">?</span>
                   </div>
                 </div>
-              )}
 
-              {/* Context-aware message based on voting result - Only show for non-elimination cases */}
-              {!(votingResult === 'INNOCENT_ELIMINATED' || votingResult === 'ASUR_ELIMINATED') && (
-                <div className="space-y-6">
-                  {votingResult === 'NO_VOTES' || noVotesCast ? (
-                    // No votes cast
-                    <>
-
-                      <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-yellow pixel-text-3d-float">
-                        NO VOTES CAST
-                      </div>
-                      <div className="text-base sm:text-lg md:text-xl font-press-start text-gray-400">
-                        All players remain alive
-                      </div>
-                    </>
-                  ) : votingResult === 'TIE' || isActualTie ? (
-                    // Actual voting tie (multiple players with same max votes)
-                    <>
-
-                      <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-blue pixel-text-3d-float">
-                        VOTING TIE
-                      </div>
-                      <div className="text-base sm:text-lg md:text-xl font-press-start text-gray-400">
-                        {playersWithMaxVotes} players tied with {maxVotes} vote{maxVotes !== 1 ? 's' : ''} each
-                      </div>
-                    </>
-                  ) : (
-                    // Fallback - shouldn't normally reach here
-                    <>
-
-                      <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-gray pixel-text-3d-float">
-                        NO ELIMINATION
-                      </div>
-                      <div className="text-base sm:text-lg md:text-xl font-press-start text-gray-400">
-                        All players remain alive
-                      </div>
-                    </>
+                {/* Player Info */}
+                <div className="space-y-2">
+                  <div className="text-xl sm:text-2xl md:text-3xl font-press-start">
+                    <ColoredPlayerName playerName={eliminatedPlayer.name} />
+                  </div>
+                  {eliminatedPlayer.role && (
+                    <div className="text-lg sm:text-xl md:text-2xl font-press-start pixel-text-3d-white">Role: {eliminatedPlayer.role}</div>
                   )}
                 </div>
-              )}
-
-              <div className="text-lg sm:text-xl md:text-2xl font-press-start pixel-text-3d-white">
-                {timeLeft > 0 ? `Continuing in ${timeLeft}s...` : 'The game continues...'}
               </div>
+            )}
+
+            {/* Context-aware message based on voting result - Only show for non-elimination cases */}
+            {!(votingResult === 'INNOCENT_ELIMINATED' || votingResult === 'ASUR_ELIMINATED') && (
+              <div className="space-y-6">
+                {votingResult === 'NO_VOTES' || noVotesCast ? (
+                  // No votes cast
+                  <>
+
+                    <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-yellow pixel-text-3d-float">
+                      NO VOTES CAST
+                    </div>
+                    <div className="text-base sm:text-lg md:text-xl font-press-start text-gray-400">
+                      All players remain alive
+                    </div>
+                  </>
+                ) : votingResult === 'TIE' || isActualTie ? (
+                  // Actual voting tie (multiple players with same max votes)
+                  <>
+
+                    <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-blue pixel-text-3d-float">
+                      VOTING TIE
+                    </div>
+                    <div className="text-base sm:text-lg md:text-xl font-press-start text-gray-400">
+                      {playersWithMaxVotes} players tied with {maxVotes} vote{maxVotes !== 1 ? 's' : ''} each
+                    </div>
+                  </>
+                ) : (
+                  // Fallback - shouldn't normally reach here
+                  <>
+
+                    <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-gray pixel-text-3d-float">
+                      NO ELIMINATION
+                    </div>
+                    <div className="text-base sm:text-lg md:text-xl font-press-start text-gray-400">
+                      All players remain alive
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="text-lg sm:text-xl md:text-2xl font-press-start pixel-text-3d-white">
+              {timeLeft > 0 ? `Continuing in ${timeLeft}s...` : 'The game continues...'}
             </div>
-          </Card>
-        </div>
+          </div>
+        </Card>
       </div>
     )
   }
@@ -373,29 +353,32 @@ export default function VotingScreen({ players, game, currentPlayer, submitVote,
         </div>
       </div>
 
-      {/* Header with Eliminated Indicator */}
-      <ScreenHeader
-        title="VOTING PHASE"
-        timer={timeLeft}
-        subtitle={
-          submitted
+      {/* Top Section: Title, Timer, and Instruction Bar */}
+      <div className="w-full max-w-7xl text-center">
+        <h1 className="text-4xl md:text-5xl font-bold pixel-text-3d-white pixel-text-3d-float-long">VOTING PHASE</h1>
+        <div className="text-5xl md:text-7xl font-bold pixel-text-3d-blue my-2">{timeLeft}</div>
+        <div className={`w-full bg-black/50 border-2 p-3 text-lg md:text-xl ${selectedVote && !submitted ? 'border-yellow-400 text-yellow-400 animate-pulse' : 'border-gray-500 text-gray-300'}`}>
+          {submitted
             ? "Vote confirmed. Waiting for others..."
             : selectedVote
               ? `You selected ${players.find(p => p.id === selectedVote)?.name}. Click again to confirm.`
               : "Click a player to cast your vote."
-        }
-        subtitleClassName={selectedVote && !submitted ? 'border-yellow-400 text-yellow-400 animate-pulse' : ''}
-        isEliminated={isEliminated}
-        showTips={true}
-        tipPhase="voting"
-        customTips={[
-          "Click a player to select, <strong>double-click to confirm</strong>.",
-          "Vote to eliminate who you suspect is ASUR",
-          "Most votes = eliminated",
-          "Tie = no elimination",
-          "Use info from night phase"
-        ]}
-      />
+          }
+        </div>
+
+        {/* Voting Phase Tips */}
+        <TipBar
+          phase="voting"
+          tips={[
+            "Click a player to select, <strong>double-click to confirm</strong>.",
+            "Vote to eliminate who you suspect is ASUR",
+            "Most votes = eliminated",
+            "Tie = no elimination",
+            "Use info from night phase"
+          ]}
+          className="mt-4"
+        />
+      </div>
 
       {/* Main Content Area - This will now be centered by space-between */}
       <div className="flex-grow flex items-center justify-center w-full max-w-7xl">

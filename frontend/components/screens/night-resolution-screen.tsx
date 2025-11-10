@@ -61,7 +61,7 @@ export default function NightResolutionScreen({ resolution, onContinue, game, cu
   // Countdown timer
   useEffect(() => {
     if (showResults && timeLeft > 0) {
-      const timer = setTimeout(() => setTimeLeft(prev => prev - 1), 1000);
+      const timer = setTimeout(() => setTimeLeft((prev: number) => prev - 1), 1000);
       return () => clearTimeout(timer);
     }
   }, [showResults, timeLeft]);
