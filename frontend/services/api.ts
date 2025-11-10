@@ -37,6 +37,7 @@ export interface Game {
   timerReady?: boolean
   votingResolved?: boolean
   votingResult?: any
+  lastVotingResult?: any
   isGameOver?: boolean
   onChainGameId?: string | number
   nightResolution?: {

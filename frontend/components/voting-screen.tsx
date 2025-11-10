@@ -101,23 +101,31 @@ export default function VotingScreen({ players, game, currentPlayer, submitVote,
           currentCount: currentEliminatedCount,
           beforeVotingCount: eliminatedCountBeforeVoting,
           wasEliminatedThisRound: wasPlayerEliminatedThisRound,
-          votingResult: game.votingResult
+          votingResult: game.votingResult,
+          eliminated: game.eliminated
         })
 
-        if (wasPlayerEliminatedThisRound && game.eliminated && game.eliminated.length > 0) {
+        // Check both elimination count AND votingResult to be sure
+        const someoneWasEliminated = wasPlayerEliminatedThisRound ||
+          game.votingResult === 'ASUR_ELIMINATED' ||
+          game.votingResult === 'INNOCENT_ELIMINATED'
+
+        if (someoneWasEliminated && game.eliminated && game.eliminated.length > 0) {
           // Someone was eliminated in this voting round
           const lastEliminated = game.eliminated[game.eliminated.length - 1]
           const eliminated = players.find(p => p.address === lastEliminated)
           if (eliminated) {
-            console.log('🎯 Player eliminated in this voting round:', eliminated.name)
+            console.log('🎯 Player eliminated in this voting round:', eliminated.name, 'votingResult:', game.votingResult)
             setEliminatedPlayer(eliminated)
             setEliminatedPlayerAvatar(eliminated.avatar) // Cache the avatar to prevent alternation
             // Play elimination sound
             soundService.playElimination()
+          } else {
+            console.log('🎯 ERROR: Could not find eliminated player in players list:', lastEliminated)
           }
         } else {
           // No one was eliminated in this voting round (tie, no votes, or no new eliminations)
-          console.log('🎯 No one eliminated in this voting round')
+          console.log('🎯 No one eliminated in this voting round. someoneWasEliminated:', someoneWasEliminated)
           setEliminatedPlayer(null)
           setEliminatedPlayerAvatar(null)
         }
@@ -137,6 +145,14 @@ export default function VotingScreen({ players, game, currentPlayer, submitVote,
       onComplete()
     }
   }, [game?.phase, game?.votingResolved, game?.eliminated, players, onComplete, resultShown, showResult])
+
+  // Debug: Log votes during voting phase
+  useEffect(() => {
+    if (game?.phase === 'voting' && game?.votes) {
+      console.log('🗳️ Current votes in UI:', game.votes);
+      console.log('🗳️ Players:', players.map(p => ({ id: p.id, name: p.name, address: p.address })));
+    }
+  }, [game?.votes, game?.phase, players]);
 
   // Keyboard navigation (arrow keys + Enter) - hidden feature
   useEffect(() => {
@@ -189,20 +205,48 @@ export default function VotingScreen({ players, game, currentPlayer, submitVote,
   }
 
   if (showResult) {
-    const votingResult = game?.votingResult;
+    // Use lastVotingResult as fallback if votingResult is undefined (happens after phase transition)
+    const votingResult = game?.votingResult || game?.lastVotingResult;
 
     const totalVotes = game?.votes ? Object.keys(game.votes).length : 0
     const noVotesCast = totalVotes === 0
+
+    // Count votes per player to detect actual ties
+    const voteCounts: { [key: string]: number } = {}
+    if (game?.votes) {
+      Object.values(game.votes).forEach((target) => {
+        if (typeof target === 'string') {
+          voteCounts[target] = (voteCounts[target] || 0) + 1
+        }
+      })
+    }
+
+    // Find max votes and count how many players have that max
+    const maxVotes = Math.max(...Object.values(voteCounts), 0)
+    const playersWithMaxVotes = Object.values(voteCounts).filter(count => count === maxVotes).length
+    const isActualTie = maxVotes > 0 && playersWithMaxVotes > 1
+
+    console.log('🗳️ Frontend vote analysis:', {
+      totalVotes,
+      voteCounts,
+      maxVotes,
+      playersWithMaxVotes,
+      isActualTie,
+      votingResult
+    })
 
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-2xl p-6 sm:p-8 bg-card border-4 border-destructive text-center">
           <div className="space-y-8">
-            {/* Main Avatar Section - Only show if someone was eliminated */}
-            {eliminatedPlayer && (
+            {/* Main Avatar Section - Only show if someone was eliminated AND votingResult confirms it */}
+            {eliminatedPlayer && (votingResult === 'INNOCENT_ELIMINATED' || votingResult === 'ASUR_ELIMINATED') && (
               <div className="space-y-6">
 
-                <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-red pixel-text-3d-float">PLAYER ELIMINATED</div>
+                {/* Context-specific header based on who was eliminated */}
+                <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-red pixel-text-3d-float">
+                  {votingResult === 'ASUR_ELIMINATED' ? 'ASUR ELIMINATED!' : 'INNOCENT ELIMINATED!'}
+                </div>
 
                 {/* Eliminated Player Avatar */}
                 <div className="flex justify-center">
@@ -235,66 +279,45 @@ export default function VotingScreen({ players, game, currentPlayer, submitVote,
               </div>
             )}
 
-            {/* Context-aware message based on voting result */}
-            <div className="space-y-6">
-              {votingResult === 'INNOCENT_ELIMINATED' ? (
-                // Innocent eliminated - ASUR winning
-                <>
-                  <div className="text-2xl sm:text-3xl md:text-4xl font-bold font-press-start pixel-text-3d-red pixel-text-3d-float">
-                    {game.isGameOver ? 'ASUR WON' : 'ASUR IS WINNING'}
-                  </div>
+            {/* Context-aware message based on voting result - Only show for non-elimination cases */}
+            {!(votingResult === 'INNOCENT_ELIMINATED' || votingResult === 'ASUR_ELIMINATED') && (
+              <div className="space-y-6">
+                {votingResult === 'NO_VOTES' || noVotesCast ? (
+                  // No votes cast
+                  <>
 
-                  {/* Swaggy Avatar - Responsive */}
-                  <div className="flex justify-center">
-                    <img
-                      src="https://ik.imagekit.io/3rdfd9oed/pepAsur%20Assets/swaggy.png?updatedAt=1758922659674"
-                      alt="ASUR is winning"
-                      className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 xl:w-56 xl:h-56 object-cover rounded-none border-2 border-[#FF0000] shadow-lg animate-pulse"
-                      style={{ imageRendering: 'pixelated' }}
-                    />
-                  </div>
-                </>
-              ) : votingResult === 'ASUR_ELIMINATED' ? (
-                // ASUR eliminated - Villagers winning
-                <>
-                  <div className="text-2xl sm:text-3xl md:text-4xl font-bold font-press-start pixel-text-3d-green pixel-text-3d-float">
-                    {game.isGameOver ? 'VILLAGERS WON' : 'VILLAGERS ARE WINNING'}
-                  </div>
+                    <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-yellow pixel-text-3d-float">
+                      NO VOTES CAST
+                    </div>
+                    <div className="text-base sm:text-lg md:text-xl font-press-start text-gray-400">
+                      All players remain alive
+                    </div>
+                  </>
+                ) : votingResult === 'TIE' || isActualTie ? (
+                  // Actual voting tie (multiple players with same max votes)
+                  <>
 
-                  {/* Villager Avatar - Responsive */}
-                  <div className="flex justify-center">
-                    <img
-                      src="https://ik.imagekit.io/3rdfd9oed/pepAsur%20Assets/blueShirt.png?updatedAt=1758922659560"
-                      alt="Villagers are winning"
-                      className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 xl:w-56 xl:h-56 object-cover rounded-none border-2 border-[#00FF00] shadow-lg animate-pulse"
-                      style={{ imageRendering: 'pixelated' }}
-                    />
-                  </div>
-                </>
-              ) : noVotesCast ? (
-                // No votes cast
-                <>
+                    <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-blue pixel-text-3d-float">
+                      VOTING TIE
+                    </div>
+                    <div className="text-base sm:text-lg md:text-xl font-press-start text-gray-400">
+                      {playersWithMaxVotes} players tied with {maxVotes} vote{maxVotes !== 1 ? 's' : ''} each
+                    </div>
+                  </>
+                ) : (
+                  // Fallback - shouldn't normally reach here
+                  <>
 
-                  <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-yellow pixel-text-3d-float">
-                    NO VOTES CAST
-                  </div>
-                  <div className="text-base sm:text-lg md:text-xl font-press-start text-gray-400">
-                    All players remain alive
-                  </div>
-                </>
-              ) : (
-                // Voting tie
-                <>
-
-                  <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-blue pixel-text-3d-float">
-                    VOTING TIE
-                  </div>
-                  <div className="text-base sm:text-lg md:text-xl font-press-start text-gray-400">
-                    All players remain alive
-                  </div>
-                </>
-              )}
-            </div>
+                    <div className="text-2xl sm:text-3xl font-bold font-press-start pixel-text-3d-gray pixel-text-3d-float">
+                      NO ELIMINATION
+                    </div>
+                    <div className="text-base sm:text-lg md:text-xl font-press-start text-gray-400">
+                      All players remain alive
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="text-lg sm:text-xl md:text-2xl font-press-start pixel-text-3d-white">
               {timeLeft > 0 ? `Continuing in ${timeLeft}s...` : 'The game continues...'}

@@ -409,8 +409,18 @@ class SocketManager {
         rewards: game.rewards,
         winners: game.winners,
         status: game.status,
-        votingResolved: game.votingResolved
+        votingResolved: game.votingResolved,
+        votingResult: game.votingResult,
+        lastVotingResult: game.lastVotingResult,
+        taskCounts: game.taskCounts,
+        settings: game.settings,
+        isGameOver: game.isGameOver,
+        isPublic: game.isPublic,
+        minPlayers: game.minPlayers,
+        maxPlayers: game.maxPlayers
       };
+
+      console.log(`📡 Emitting votingResult: ${game.votingResult} for game ${gameId}`);
 
       // Emit to all players in the game
       this.io.to(`game-${gameId}`).emit('game_state', {

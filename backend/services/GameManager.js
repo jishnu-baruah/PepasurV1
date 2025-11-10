@@ -770,6 +770,10 @@ class GameManager {
           game.timeLeft = game.settings?.nightPhaseDuration || parseInt(process.env.GAME_TIMEOUT_SECONDS) || 30;
           game.pendingActions = {};
           this.phaseStartTimes.set(gameId, Date.now());
+
+          // Store last voting result before clearing (for frontend reference)
+          game.lastVotingResult = game.votingResult;
+
           game.votes = {};
           game.votingResolved = false;
           game.votingResult = null;
@@ -1073,6 +1077,8 @@ class GameManager {
     }
 
     console.log(`🗳️ Resolving voting phase for game ${gameId}`);
+    console.log(`🗳️ Current votes:`, game.votes);
+
     const voteCounts = {};
     for (const voter in game.votes) {
       const target = game.votes[voter];
@@ -1081,28 +1087,64 @@ class GameManager {
       }
     }
 
+    console.log(`🗳️ Vote counts:`, voteCounts);
+
     let maxVotes = 0;
     let eliminatedPlayers = [];
+
+    // First pass: find the maximum vote count
     for (const player in voteCounts) {
       if (voteCounts[player] > maxVotes) {
         maxVotes = voteCounts[player];
-        eliminatedPlayers = [player];
-      } else if (voteCounts[player] === maxVotes) {
-        eliminatedPlayers.push(player);
       }
     }
+
+    console.log(`🗳️ Max votes: ${maxVotes}`);
+
+    // Second pass: find all players with max votes
+    if (maxVotes > 0) {
+      for (const player in voteCounts) {
+        if (voteCounts[player] === maxVotes) {
+          eliminatedPlayers.push(player);
+        }
+      }
+    }
+
+    console.log(`🗳️ Players with max votes:`, eliminatedPlayers);
 
     if (eliminatedPlayers.length === 1) {
       const eliminated = eliminatedPlayers[0];
       game.eliminated.push(eliminated);
-      console.log(`🗳️ Player ${eliminated} was eliminated by vote`);
-      if (game.roles[eliminated] === 'Mafia') {
+      console.log(`🗳️ Player ${eliminated} was eliminated by vote with ${maxVotes} vote(s)`);
+      console.log(`🗳️ Eliminated player address:`, eliminated);
+      console.log(`🗳️ Eliminated player role:`, game.roles[eliminated]);
+      console.log(`🗳️ Role type:`, typeof game.roles[eliminated]);
+      console.log(`🗳️ Role comparison: "${game.roles[eliminated]}" === "Mafia"?`, game.roles[eliminated] === 'Mafia');
+      console.log(`🗳️ All roles:`, JSON.stringify(game.roles, null, 2));
+
+      const eliminatedRole = game.roles[eliminated];
+
+      if (eliminatedRole === 'Mafia') {
+        console.log(`✅ MAFIA ELIMINATED - Setting votingResult to ASUR_ELIMINATED`);
         game.votingResult = 'ASUR_ELIMINATED';
+      } else if (eliminatedRole === 'Villager' || eliminatedRole === 'Doctor' || eliminatedRole === 'Detective') {
+        console.log(`❌ INNOCENT ELIMINATED - Setting votingResult to INNOCENT_ELIMINATED (role was: ${eliminatedRole})`);
+        game.votingResult = 'INNOCENT_ELIMINATED';
       } else {
+        console.log(`⚠️ UNKNOWN ROLE - Setting votingResult to INNOCENT_ELIMINATED (role was: ${eliminatedRole})`);
         game.votingResult = 'INNOCENT_ELIMINATED';
       }
+
+      console.log(`🗳️ Final votingResult:`, game.votingResult);
+    } else if (eliminatedPlayers.length > 1) {
+      console.log(`🗳️ Voting tie between ${eliminatedPlayers.length} players with ${maxVotes} vote(s) each:`, eliminatedPlayers);
+      game.votingResult = 'TIE';
+    } else if (maxVotes === 0) {
+      console.log(`🗳️ No votes cast - no elimination`);
+      game.votingResult = 'NO_VOTES';
     } else {
-      console.log(`🗳️ No player eliminated due to a tie or no votes`);
+      // This shouldn't happen, but just in case
+      console.log(`🗳️ Unexpected voting state - no elimination`);
       game.votingResult = 'TIE';
     }
 

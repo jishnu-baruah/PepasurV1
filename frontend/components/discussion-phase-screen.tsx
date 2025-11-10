@@ -29,15 +29,15 @@ const getPlayerColor = (playerName: string): string => {
   return 'text-gray-300'
 }
 
-// Helper function to colorize player names in message text
+// Helper function to colorize player names in message text (including @ mentions)
 const colorizePlayerNames = (text: string): JSX.Element => {
-  // Match player aliases like 0xRed, 0xBlue, etc.
-  const parts = text.split(/(0x(?:Red|Blue|Purple|Yellow))/g)
+  // Match player aliases like 0xRed, 0xBlue, etc. AND @mentions like @0xRed, @0xBlue
+  const parts = text.split(/(@?0x(?:Red|Blue|Purple|Yellow))/g)
 
   return (
     <>
       {parts.map((part, index) => {
-        const color = getPlayerColor(part)
+        const color = getPlayerColor(part.replace('@', ''))
         return (
           <span key={index} className={color}>
             {part}
@@ -56,7 +56,14 @@ function DiscussionPhaseScreen({ onComplete, game, gameId, currentPlayerAddress,
   const [activeTab, setActiveTab] = useState<'chat' | 'tasks'>('chat')
   const announcementSent = useRef(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const { socket, sendChatMessage } = useSocket()
+
+  // Autocomplete state
+  const [showAutocomplete, setShowAutocomplete] = useState(false)
+  const [autocompleteOptions, setAutocompleteOptions] = useState<Player[]>([])
+  const [selectedOptionIndex, setSelectedOptionIndex] = useState(0)
+  const [mentionStartPos, setMentionStartPos] = useState<number | null>(null)
 
   const [messages, setMessages] = useState<Array<{
     id: string
@@ -149,6 +156,82 @@ function DiscussionPhaseScreen({ onComplete, game, gameId, currentPlayerAddress,
     }
   }, [game?.timeLeft])
 
+  // Handle @ mention autocomplete
+  const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setMessage(value)
+
+    const cursorPos = e.target.selectionStart || 0
+    const textBeforeCursor = value.slice(0, cursorPos)
+    const lastAtSymbol = textBeforeCursor.lastIndexOf('@')
+
+    if (lastAtSymbol !== -1 && (lastAtSymbol === 0 || value[lastAtSymbol - 1] === ' ')) {
+      const searchText = textBeforeCursor.slice(lastAtSymbol + 1).toLowerCase()
+
+      if (players && players.length > 0) {
+        const filtered = players.filter(p =>
+          p.name && p.name.toLowerCase().includes(searchText) && p.address !== currentPlayerAddress
+        )
+
+        if (filtered.length > 0) {
+          setAutocompleteOptions(filtered)
+          setShowAutocomplete(true)
+          setMentionStartPos(lastAtSymbol)
+          setSelectedOptionIndex(0)
+        } else {
+          setShowAutocomplete(false)
+        }
+      }
+    } else {
+      setShowAutocomplete(false)
+    }
+  }
+
+  // Handle autocomplete selection
+  const selectMention = (player: Player) => {
+    if (mentionStartPos === null) return
+
+    const beforeMention = message.slice(0, mentionStartPos)
+    const afterMention = message.slice(inputRef.current?.selectionStart || message.length)
+    const newMessage = `${beforeMention}@${player.name} ${afterMention}`
+
+    setMessage(newMessage)
+    setShowAutocomplete(false)
+    setMentionStartPos(null)
+
+    // Focus back on input
+    setTimeout(() => {
+      inputRef.current?.focus()
+    }, 0)
+  }
+
+  // Handle keyboard navigation in autocomplete
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (showAutocomplete && autocompleteOptions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelectedOptionIndex(prev =>
+          prev < autocompleteOptions.length - 1 ? prev + 1 : prev
+        )
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSelectedOptionIndex(prev => prev > 0 ? prev - 1 : prev)
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        // Always select the first option (index 0) or the currently selected one
+        const optionToSelect = autocompleteOptions[selectedOptionIndex] || autocompleteOptions[0]
+        if (optionToSelect) {
+          selectMention(optionToSelect)
+        }
+        return
+      } else if (e.key === 'Escape') {
+        setShowAutocomplete(false)
+      }
+    } else if (e.key === 'Enter') {
+      handleSendMessage()
+    }
+  }
+
   const handleSendMessage = () => {
     if (message.trim() && gameId && currentPlayerAddress && sendChatMessage) {
       try {
@@ -159,6 +242,7 @@ function DiscussionPhaseScreen({ onComplete, game, gameId, currentPlayerAddress,
           timestamp: Date.now()
         })
         setMessage("")
+        setShowAutocomplete(false)
         console.log('Chat message sent:', message.trim())
       } catch (error) {
         console.error('Failed to send chat message:', error)
@@ -434,7 +518,7 @@ function DiscussionPhaseScreen({ onComplete, game, gameId, currentPlayerAddress,
                               : 'text-red-200 font-semibold text-sm sm:text-base md:text-lg drop-shadow-lg'
                             : ''
                             }`}>
-                            {isTaskAnnouncement ? colorizePlayerNames(msg.message) : msg.message}
+                            {colorizePlayerNames(msg.message)}
                           </div>
                         )}
                       </div>
@@ -509,12 +593,39 @@ function DiscussionPhaseScreen({ onComplete, game, gameId, currentPlayerAddress,
         <div className="p-3 sm:p-4 md:p-6 border-t-2 border-[#4A8C4A] bg-gradient-to-r from-[#0A0A0A] to-[#1A1A1A] flex-shrink-0">
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 md:space-x-4">
             <div className="flex-1 relative">
+              {/* Autocomplete Dropdown */}
+              {showAutocomplete && autocompleteOptions.length > 0 && (
+                <div className="absolute bottom-full left-0 mb-2 w-full max-w-xs bg-[#1A1A1A] border-2 border-[#4A8C4A] rounded-none shadow-lg z-50 max-h-48 overflow-y-auto">
+                  {autocompleteOptions.map((player, index) => (
+                    <button
+                      key={player.address}
+                      onClick={() => selectMention(player)}
+                      className={`w-full px-3 py-2 text-left flex items-center space-x-2 transition-colors ${index === selectedOptionIndex
+                        ? 'bg-[#4A8C4A] text-white'
+                        : 'hover:bg-[#2A2A2A] text-gray-300'
+                        }`}
+                    >
+                      <img
+                        src={player.avatar}
+                        alt={player.name}
+                        className="w-6 h-6 rounded-none object-cover"
+                        style={{ imageRendering: 'pixelated' }}
+                      />
+                      <span className={`font-press-start text-xs ${getPlayerColor(player.name)}`}>
+                        {player.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <PixelInput
+                ref={inputRef}
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Type your message..."
+                onChange={handleMessageChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Type your message... (use @ to mention)"
                 className="w-full bg-[#1A1A1A] border-2 border-[#4A8C4A] text-white placeholder-[#666666] pixel-input-focus text-xs sm:text-sm md:text-base"
-                onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
               />
               <div className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-[#4A8C4A] text-xs font-press-start">
                 {message.length}/100
