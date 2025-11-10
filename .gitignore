@@ -60,6 +60,10 @@ yarn-error.log*
 smoothsend-demo/
 
 # Documentation files (ignore all .md files)
-*.md
+# *.md
 !README.md
 !business_logic_analysis.md
+!backend_refactor.md
+!COMMIT_REVEAL_INTEGRATION_PLAN.md
+!ROUTE_CLEANUP_PLAN.md
+!SCREEN_HEADER_REFACTORING.md

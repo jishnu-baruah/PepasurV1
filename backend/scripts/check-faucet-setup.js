@@ -9,7 +9,7 @@
  */
 
 require('dotenv').config();
-const AptosService = require('../services/AptosService');
+const AptosService = require('../services/aptos/AptosService');
 
 async function checkFaucetSetup() {
   console.log('🔍 Checking Faucet Setup...\n');

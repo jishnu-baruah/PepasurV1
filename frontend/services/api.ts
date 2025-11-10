@@ -70,9 +70,7 @@ export interface CreateGameRequest {
   settings?: GameSettings
 }
 
-export interface JoinGameRequest {
-  playerAddress: string
-}
+
 
 export interface JoinByRoomCodeRequest {
   roomCode: string
@@ -181,16 +179,7 @@ class ApiService {
     }>(url)
   }
 
-  async joinGame(gameId: string, data: JoinGameRequest) {
-    return this.request<{
-      success: boolean
-      game: Game
-      message: string
-    }>(`/api/game/${gameId}/player/join`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    })
-  }
+
 
   async getActiveGames() {
     return this.request<{
@@ -205,24 +194,10 @@ class ApiService {
         day: number
         startedAt: number | null
       }>
-    }>('/api/game')
+    }>('/api/game/active')
   }
 
-  async getPublicGames() {
-    return this.request<{
-      success: boolean
-      games: Array<{
-        gameId: string
-        creator: string
-        players: number
-        maxPlayers: number
-        stakeAmount: string
-        phase: string
-        day: number
-        startedAt: number | null
-      }>
-    }>('/api/game/public')
-  }
+
 
   // Signal that frontend is ready for timer
   async signalReady(gameId: string, playerAddress: string) {

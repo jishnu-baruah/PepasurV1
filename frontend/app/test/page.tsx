@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import ConnectionTest from "@/components/connection-test"
+import ConnectionTest from "@/components/common/connection-test"
 import { useGame } from "@/hooks/useGame"
 import { apiService } from "@/services/api"
 import { Card } from "@/components/ui/card"
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 
 export default function TestPage() {
   const [testResults, setTestResults] = useState<string[]>([])
-  const { createGame, joinGame } = useGame()
+  const { createGame } = useGame()
 
   const addResult = (result: string) => {
     setTestResults(prev => [...prev, `${new Date().toLocaleTimeString()}: ${result}`])
@@ -34,15 +34,7 @@ export default function TestPage() {
     }
   }
 
-  const testJoinGame = async () => {
-    try {
-      const mockAddress = "0x" + Math.random().toString(16).substr(2, 40)
-      await joinGame("test-game-id", mockAddress)
-      addResult(`✅ Joined game`)
-    } catch (error) {
-      addResult(`❌ Join game failed: ${error}`)
-    }
-  }
+
 
   const testActiveGames = async () => {
     try {
@@ -76,9 +68,7 @@ export default function TestPage() {
             <Button onClick={testCreateGame} variant="pixel" size="sm">
               Create Game
             </Button>
-            <Button onClick={testJoinGame} variant="pixel" size="sm">
-              Join Game
-            </Button>
+
             <Button onClick={testActiveGames} variant="pixel" size="sm">
               Get Active Games
             </Button>

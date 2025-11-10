@@ -6,13 +6,13 @@ require('dotenv').config();
 
 const connectDB = require('./config/database');
 const gameRoutes = require('./routes/game');
-const detectiveRoutes = require('./routes/detective');
-const stakingRoutes = require('./routes/staking');
+
+
 const faucetRoutes = require('./routes/faucet');
 
-const GameManager = require('./services/GameManager');
-const SocketManager = require('./services/SocketManager');
-const AptosService = require('./services/AptosService');
+const GameManager = require('./services/game/GameManager');
+const SocketManager = require('./services/core/SocketManager');
+const AptosService = require('./services/aptos/AptosService');
 
 const app = express();
 const server = http.createServer(app);
@@ -74,17 +74,17 @@ app.use((req, res, next) => {
 });
 
 // Initialize services
-const gameManager = new GameManager();
+const aptosService = new AptosService(); // Initialize AptosService first
+const gameManager = new GameManager(null, aptosService); // Pass aptosService to GameManager
 const socketManager = new SocketManager(io, gameManager);
-const aptosService = new AptosService();
 
 // Set the socketManager reference in gameManager
 gameManager.socketManager = socketManager;
 
 // Routes
 app.use('/api/game', gameRoutes(gameManager, aptosService));
-app.use('/api/detective', detectiveRoutes(gameManager));
-app.use('/api/staking', stakingRoutes);
+
+
 app.use('/api/faucet', faucetRoutes);
 
 app.get('/api/health', (req, res) => {

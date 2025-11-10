@@ -9,7 +9,7 @@ import "@aptos-labs/wallet-adapter-ant-design/dist/index.css"
 import "./globals.css"
 import { Suspense } from "react"
 import { SocketProvider } from "@/contexts/SocketContext"
-import { Providers } from "@/components/providers"
+import { Providers } from "@/components/common/providers"
 
 const orbitron = Orbitron({
   subsets: ["latin"],
