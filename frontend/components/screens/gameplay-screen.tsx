@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Player } from "@/hooks/useGame"
 import { Game, apiService } from "@/services/api"
-import FullscreenToggle from "@/components/common/fullscreen-toggle"
+import ScreenHeader from "@/components/common/screen-header"
 import ColoredPlayerName from "@/components/game/colored-player-name"
 import TipBar from "@/components/common/tip-bar"
 
@@ -418,24 +418,14 @@ export default function GameplayScreen({ currentPlayer, players, game, submitNig
         {!isConnected && (
           <div className="absolute top-4 right-4 text-xs text-yellow-400">⚠️ DISCONNECTED</div>
         )}
-        {/* Full-width header with buttons */}
-        <div className="absolute top-0 left-0 right-0 w-full bg-black/60 border-b border-white/20 py-2 px-4 flex justify-between items-center z-50">
-          <div className="flex gap-2">
-            <button
-              onClick={() => refreshGame()}
-              className="w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded flex items-center justify-center"
-              title="Refresh Game State"
-            >
-              🔄
-            </button>
-            <div className="w-8 h-8 bg-black/60 rounded flex items-center justify-center border border-white/20">
-              <FullscreenToggle variant="icon" className="text-white text-sm" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-            <div className="text-xs text-gray-400 font-press-start">{isConnected ? 'CONNECTED' : 'DISCONNECTED'}</div>
-          </div>
+        <div className="absolute top-0 left-0 right-0 z-50">
+          <ScreenHeader
+            isConnected={isConnected}
+            onRefresh={refreshGame}
+            players={players}
+            game={game}
+            currentPlayer={currentPlayer}
+          />
         </div>
 
         <h1 className={`text-4xl md:text-5xl font-bold ${roleHeaderColor} pixel-text-3d-float-long mt-12`}>NIGHT PHASE</h1>

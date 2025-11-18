@@ -9,7 +9,7 @@ import { Player } from "@/hooks/useGame" // Add this line
 import TaskComponent from "@/components/game/task-component"
 import ColoredPlayerName from "@/components/game/colored-player-name"
 import TipBar from "@/components/common/tip-bar"
-import FullscreenToggle from "@/components/common/fullscreen-toggle"
+import ScreenHeader from "@/components/common/screen-header"
 
 interface DiscussionPhaseScreenProps {
   onComplete: () => void
@@ -328,25 +328,12 @@ function DiscussionPhaseScreen({ onComplete, game, gameId, currentPlayerAddress,
 
   return (
     <div className="h-screen gaming-bg flex flex-col overflow-hidden">
-      {/* Full-width header with buttons */}
-      <div className="flex-shrink-0 w-full bg-black/60 border-b border-white/20 py-2 px-4 flex justify-between items-center z-50">
-        <div className="flex gap-2">
-          <button
-            onClick={() => window.location.reload()}
-            className="w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded flex items-center justify-center"
-            title="Refresh Game State"
-          >
-            🔄
-          </button>
-          <div className="w-8 h-8 bg-black/60 rounded flex items-center justify-center border border-white/20">
-            <FullscreenToggle variant="icon" className="text-white text-sm" />
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${socket ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-          <div className="text-xs text-gray-400 font-press-start">{socket ? 'CONNECTED' : 'DISCONNECTED'}</div>
-        </div>
-      </div>
+      <ScreenHeader
+        isConnected={!!socket}
+        players={players}
+        game={game}
+        currentPlayer={players.find(p => p.address === currentPlayerAddress) || null}
+      />
 
       {/* Tips */}
       <div className="flex-shrink-0">
@@ -363,13 +350,13 @@ function DiscussionPhaseScreen({ onComplete, game, gameId, currentPlayerAddress,
 
       <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full p-2 sm:p-4 overflow-hidden">
         {/* Header */}
-        <div className="flex-shrink-0 p-2 sm:p-3 lg:p-4 border-b-2 border-[#4A8C4A] bg-gradient-to-r from-[#0A0A0A] to-[#1A1A1A] relative">
+        <div className="flex-shrink-0 p-2 sm:p-3 lg:p-4 border-b-2 border-[#4A8C4A] bg-gradient-to-r from-[#0A0A0A] to-[#1A1A1A] relative z-10">
           <div className="flex flex-col sm:flex-row justify-between items-center space-y-1 sm:space-y-0">
             <div className="flex items-center space-x-1 sm:space-x-2">
               <div className="text-lg sm:text-xl lg:text-2xl">💬</div>
               <h1 className="text-sm sm:text-base lg:text-lg font-press-start pixel-text-3d-white pixel-text-3d-float">DISCUSSION PHASE</h1>
             </div>
-            <div className="flex items-center space-x-1 sm:space-x-2">
+            <div className="flex items-center space-x-1 sm:space-x-2 relative z-20">
               <div className="text-sm sm:text-base lg:text-lg font-press-start pixel-text-3d-green timer-pulse">
                 ⏰ {timeLeft}s
               </div>

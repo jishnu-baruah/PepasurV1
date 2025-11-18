@@ -2,6 +2,18 @@
 node_modules/
 .npm/
 
+# AI Assistant directories
+.claude/
+.kiro/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

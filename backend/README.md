@@ -1,159 +1,271 @@
-# ASUR Backend
+# Pepasur Backend
 
 Real-time Mafia gameplay backend with Aptos blockchain integration for staking, role commit-reveal, and final settlements.
 
-## Features
+## ✨ Features
 
-- **Real-time Gameplay**: Socket.IO for live game updates
-- **Aptos Blockchain Integration**: Staking, settlements, and payouts
-- **Commit-Reveal Mechanism**: Secure action submission
-- **Detective Features**: Role revelation and verification
-- **Game Phases**: Night, Task, and Voting phases
-- **Mini-games**: Sequence rebuild, memory puzzles, hash reconstruction
+- **Real-time Gameplay**: Socket.IO for live game updates and player interactions
+- **Aptos Blockchain Integration**: On-chain staking, settlements, and payouts
+- **Game State Management**: In-memory game state with optional MongoDB persistence
+- **Commit-Reveal Mechanism**: Cryptographic security for action submission
+- **Detective Role Features**: Role revelation and verification system
+- **Game Phase Management**: Night, Task, Resolution, and Voting phases
+- **Mini-game System**: Sequence rebuild, memory puzzles, hash reconstruction
+- **Faucet Service**: Testnet token distribution for new players
+- **RESTful API**: Comprehensive endpoints for game management
 
-## Stack
+## 🛠️ Tech Stack
 
-- Node.js + Express
-- Socket.IO (real-time events)
-- Aptos Blockchain
-- In-memory game state management
+- **Runtime**: Node.js
+- **Framework**: Express 4.18.2
+- **Real-time**: Socket.IO 4.7.4
+- **Blockchain**: @aptos-labs/ts-sdk 5.1.1
+- **Database**: Mongoose 8.19.2 (MongoDB)
+- **Utilities**: dotenv, uuid, cors, ethers 6.8.1
 
-## Installation
+## 🚀 Getting Started
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+### Prerequisites
 
-2. Copy environment template:
-   ```bash
-   copy .env.example .env
-   ```
+- Node.js v18 or higher
+- MongoDB (optional, for persistent storage)
+- Aptos account with private key
+- APT tokens on devnet/testnet
 
-3. Configure environment variables in `.env`:
-   ```env
-   PORT=3001
-   NODE_ENV=development
-   APTOS_NODE_URL=https://fullnode.devnet.aptoslabs.com
-   PEPASUR_APTOS_CONTRACT_ADDRESS=your_contract_address_here
-   SERVER_PRIVATE_KEY=your_server_private_key_here
-   DEFAULT_STAKE_AMOUNT=100000000
-   DEFAULT_MIN_PLAYERS=4
-   DEFAULT_MAX_PLAYERS=10
-   GAME_TIMEOUT_SECONDS=300
-   JWT_SECRET=your_jwt_secret_here
-   ```
+### Step 1: Install Dependencies
 
-4. Start the server:
-   ```bash
-   npm run dev
-   ```
+```bash
+cd backend
+npm install
+```
 
-## API Endpoints
+### Step 2: Configure Environment Variables
+
+```bash
+copy .env.example .env
+```
+
+Edit `.env` with your configuration:
+
+```env
+# Network Configuration
+NETWORK=devnet
+APTOS_NODE_URL=https://fullnode.devnet.aptoslabs.com/v1
+
+# Server Configuration
+PORT=3001
+SERVER_PRIVATE_KEY=0x... # Server wallet private key
+ADMIN_PRIVATE_KEY=0x...  # Admin wallet private key
+
+# Contract Configuration
+PEPASUR_APTOS_CONTRACT_ADDRESS=0x... # Deployed contract address
+
+# Game Settings
+DEFAULT_NIGHT_PHASE_DURATION=30
+DEFAULT_RESOLUTION_PHASE_DURATION=10
+DEFAULT_TASK_PHASE_DURATION=30
+DEFAULT_VOTING_PHASE_DURATION=10
+DEFAULT_MAX_TASK_COUNT=4
+DEFAULT_STAKE_AMOUNT=100000000  # In Octas (0.1 APT)
+DEFAULT_MIN_PLAYERS=4
+DEFAULT_MAX_PLAYERS=10
+GAME_TIMEOUT_SECONDS=300
+```
+
+### Step 3: Start the Server
+
+```bash
+npm run dev  # Development with nodemon
+# or
+npm start    # Production
+```
+
+The server will run on http://localhost:3001
+
+## 📂 Project Structure
+
+```
+backend/
+├── config/              # Configuration files
+│   └── database.js     # MongoDB connection setup
+├── models/              # Data models (Mongoose schemas)
+│   ├── Game.js         # Game state model
+│   └── FaucetRequest.js # Faucet request tracking
+├── routes/              # API route handlers
+│   ├── game.js         # Game management endpoints
+│   └── faucet.js       # Faucet endpoints
+├── services/            # Business logic layer
+│   ├── aptos/          # Aptos blockchain services
+│   │   ├── AptosService.js           # Main Aptos service
+│   │   ├── AptosClientManager.js     # Client connection management
+│   │   ├── AptosGameQueries.js       # On-chain data queries
+│   │   ├── AptosGameTransactions.js  # Transaction builders
+│   │   └── AptosSerializationUtils.js # Data serialization
+│   ├── core/           # Core services
+│   │   ├── FaucetService.js   # Faucet token distribution
+│   │   ├── SocketManager.js   # Socket.IO event handling
+│   │   └── TaskManager.js     # Mini-game task management
+│   ├── game/           # Game logic services
+│   │   ├── GameManager.js         # Game state management
+│   │   ├── GameRepository.js      # Game data access
+│   │   ├── GameRewardService.js   # Reward calculation
+│   │   ├── GameStateFormatter.js  # State formatting
+│   │   └── PhaseManager.js        # Game phase transitions
+│   └── staking/        # Staking services
+│       ├── StakingManager.js  # Staking coordination
+│       └── StakingService.js  # Staking operations
+├── utils/               # Utility functions
+│   ├── commitReveal.js           # Commit-reveal cryptography
+│   ├── aptosTransactionUtils.js  # Transaction helpers
+│   ├── dbUtils.js                # Database utilities
+│   └── timeFormatter.js          # Time formatting
+├── scripts/             # Utility scripts
+│   ├── initialize-contract.js    # Contract initialization
+│   ├── update-server-signer.js   # Update server signer
+│   └── check-faucet-setup.js     # Faucet setup verification
+├── .env                 # Environment variables
+├── package.json         # Dependencies
+└── server.js            # Application entry point
+```
+
+## 🔌 API Endpoints
 
 ### Game Management
 
-- `POST /api/game/create` - Create a new game
+- `POST /api/game/create` - Create a new game lobby
 - `GET /api/game/:gameId` - Get game state
 - `PATCH /api/game/:gameId` - Update game state (admin)
 - `POST /api/game/:gameId/player/join` - Join game
 - `POST /api/game/:gameId/player/eliminate` - Eliminate player
-- `GET /api/game` - Get active games
+- `GET /api/game` - Get list of active games
 - `GET /api/game/:gameId/history` - Get game history
 
 ### Game Actions
 
-- `POST /api/game/:gameId/action/night` - Submit night action
+- `POST /api/game/:gameId/action/night` - Submit night phase action
 - `POST /api/game/:gameId/task/submit` - Submit task answer
-- `POST /api/game/:gameId/vote/submit` - Submit vote
+- `POST /api/game/:gameId/vote/submit` - Submit elimination vote
 
 ### Detective Features
 
-- `POST /api/detective/reveal` - Store detective reveal
-- `GET /api/detective/reveals/:gameId` - Get detective reveals
-- `POST /api/detective/verify` - Verify detective reveal
-- `GET /api/detective/info/:gameId` - Get detective info
+- `POST /api/detective/reveal` - Store detective role reveal
+- `GET /api/detective/reveals/:gameId` - Get detective reveals for game
+- `POST /api/detective/verify` - Verify detective reveal signature
+- `GET /api/detective/info/:gameId` - Get detective information
+
+### Faucet
+
+- `POST /api/faucet/claim` - Claim testnet tokens (once per 24 hours)
+- `GET /api/faucet/status/:address` - Check faucet eligibility
 
 ### Health Check
 
-- `GET /api/health` - Backend health check
+- `GET /api/health` - Backend health status
 
-## Socket.IO Events
+## 🔄 Socket.IO Events
 
 ### Client → Server
 
 - `join_game` - Join game channel
-- `submit_action` - Submit game action
+  - Payload: `{ gameId, playerId }`
+- `submit_action` - Submit game action (night phase)
+  - Payload: `{ gameId, playerId, action, target }`
 - `submit_task` - Submit task answer
-- `submit_vote` - Submit vote
+  - Payload: `{ gameId, playerId, taskId, answer }`
+- `submit_vote` - Submit elimination vote
+  - Payload: `{ gameId, playerId, targetId }`
 - `chat_message` - Send chat message
+  - Payload: `{ gameId, playerId, message }`
 
 ### Server → Client
 
-- `game_state` - Current game state
-- `game_update` - Game state updates
-- `task_update` - Task submissions
-- `task_result` - Task completion
-- `detective_reveal` - Detective actions
+- `game_state` - Full game state update
+  - Payload: Complete game state object
+- `game_update` - Incremental game state changes
+  - Payload: `{ type, data }`
+- `task_update` - Task submission updates
+  - Payload: `{ taskId, playerId, status }`
+- `task_result` - Task completion results
+  - Payload: `{ taskId, success, rewards }`
+- `detective_reveal` - Detective action notifications
+  - Payload: `{ playerId, revealedRole }`
 - `chat_message` - Chat messages
-- `error` - Error messages
+  - Payload: `{ playerId, message, timestamp }`
+- `error` - Error notifications
+  - Payload: `{ message, code }`
 
-## Game Flow
+## 🎮 Game Flow
 
-1. **Lobby Phase**: Players join and wait for minimum players
-2. **Night Phase**: Mafia, Doctor, and Detective perform actions
-3. **Task Phase**: Players complete mini-games
-4. **Voting Phase**: Players vote to eliminate someone
-5. **Repeat**: Until win condition is met
+1. **Lobby Phase**: Players join and wait for minimum player count
+2. **Night Phase**: Mafia eliminates, Doctor protects, Detective investigates
+3. **Resolution Phase**: Night actions are resolved and results announced
+4. **Task Phase**: Players complete mini-games for rewards
+5. **Voting Phase**: Players vote to eliminate suspected Mafia
+6. **Repeat**: Cycle continues until win condition is met
 
-## Game Roles
+## 🎭 Game Roles
 
 - **Mafia**: Eliminate villagers at night
 - **Doctor**: Save players from mafia attacks
 - **Detective**: Investigate and reveal player roles
 - **Villagers**: Complete tasks and vote to eliminate mafia
 
-## Commit-Reveal Mechanism
+## 🔐 Commit-Reveal Mechanism
 
-1. **Commit**: Players submit hashed actions with nonce
-2. **Reveal**: Players reveal action + nonce for verification
-3. **Validation**: Server verifies commit matches reveal
-4. **Execution**: Actions are processed after all reveals
+The backend implements a cryptographic commit-reveal system for secure action submission:
 
-## Aptos Integration
+1. **Commit Phase**: Players submit hashed actions with nonce
+   ```javascript
+   commit = hash(action + nonce + playerId)
+   ```
 
-- **Game Creation**: On-chain game creation with staking
-- **Player Joining**: On-chain stake deposits
-- **Role Commits**: On-chain role hash storage
-- **Settlements**: On-chain payout distribution
-- **Withdrawals**: On-chain fund withdrawals
+2. **Reveal Phase**: Players reveal action + nonce for verification
+   ```javascript
+   revealedAction = { action, nonce, playerId }
+   ```
 
-## Development
+3. **Validation**: Server verifies commit hash matches reveal
+   ```javascript
+   isValid = (commit === hash(action + nonce + playerId))
+   ```
 
-### Project Structure
+4. **Execution**: Actions are processed after all reveals validated
 
-```
-backend/
-├── node_modules/         # Project dependencies
-├── routes/                # API routes
-│   ├── game.js           # Game management routes
-│   └── detective.js      # Detective feature routes
-├── services/             # Business logic
-│   ├── AptosService.js    # Aptos blockchain integration
-│   ├── FaucetService.js   # Faucet service for testnet tokens
-│   ├── GameManager.js    # Game state management
-│   ├── SocketManager.js  # Socket.IO handling
-│   └── StakingService.js  # Staking and reward distribution
-├── utils/                # Utility functions
-│   └── commitReveal.js   # Commit-reveal mechanism
-├── .env                   # Environment variables
-├── .gitignore             # Git ignore file
-├── env.example            # Example environment file
-├── package.json           # Project metadata and dependencies
-├── package-lock.json      # Lockfile for dependencies
-├── README.md              # This file
-└── server.js              # Main server file
-```
+This ensures players cannot change actions after seeing others' moves, maintaining game integrity.
+
+## ⛓️ Aptos Integration
+
+- **Game Creation**: On-chain game initialization with stake deposits
+  - Creates game resource on blockchain
+  - Locks creator's stake in contract
+
+- **Player Joining**: On-chain stake deposits when joining games
+  - Validates player eligibility
+  - Locks player stake in game pool
+
+- **Role Commits**: On-chain storage of role commitment hashes
+  - Stores encrypted role assignments
+  - Prevents role manipulation
+
+- **Settlements**: On-chain reward distribution to winners
+  - Calculates winner payouts
+  - Distributes pool to winning team
+  - Applies house cut
+
+- **Withdrawals**: On-chain fund withdrawal mechanism
+  - Players claim winnings
+  - Secure withdrawal pattern
+
+## 🔒 Security Considerations
+
+- **Commit-Reveal**: All game actions use commit-reveal mechanism to prevent cheating
+- **Role Encryption**: Role information encrypted and stored off-chain
+- **Signature Verification**: Detective reveals require signature verification
+- **Input Validation**: All API endpoints validate input parameters
+- **Private Key Security**: Server private key must be kept secure and never committed to version control
+- **Rate Limiting**: Faucet includes rate limiting (once per 24 hours per address)
+
+## 🧪 Development
 
 ### Running Tests
 
@@ -161,39 +273,43 @@ backend/
 npm test
 ```
 
-### Environment Variables
+### Environment Variables Reference
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PORT` | Server port | 3001 |
-| `NODE_ENV` | Environment | development |
+| `NETWORK` | Aptos network (devnet/testnet/mainnet) | devnet |
 | `APTOS_NODE_URL` | Aptos RPC endpoint | - |
-| `PEPASUR_APTOS_CONTRACT_ADDRESS` | Contract address | - |
+| `PORT` | Server port | 3001 |
 | `SERVER_PRIVATE_KEY` | Server wallet private key | - |
+| `ADMIN_PRIVATE_KEY` | Admin wallet private key | - |
+| `PEPASUR_APTOS_CONTRACT_ADDRESS` | Deployed contract address | - |
+| `DEFAULT_NIGHT_PHASE_DURATION` | Night phase duration (seconds) | 30 |
+| `DEFAULT_RESOLUTION_PHASE_DURATION` | Resolution phase duration (seconds) | 10 |
+| `DEFAULT_TASK_PHASE_DURATION` | Task phase duration (seconds) | 30 |
+| `DEFAULT_VOTING_PHASE_DURATION` | Voting phase duration (seconds) | 10 |
+| `DEFAULT_MAX_TASK_COUNT` | Maximum tasks per game | 4 |
 | `DEFAULT_STAKE_AMOUNT` | Default stake in Octas | 100000000 |
-| `DEFAULT_MIN_PLAYERS` | Minimum players | 4 |
-| `DEFAULT_MAX_PLAYERS` | Maximum players | 10 |
-| `GAME_TIMEOUT_SECONDS` | Game timeout | 300 |
-| `JWT_SECRET` | JWT secret | - |
+| `DEFAULT_MIN_PLAYERS` | Minimum players to start | 4 |
+| `DEFAULT_MAX_PLAYERS` | Maximum players per game | 10 |
+| `GAME_TIMEOUT_SECONDS` | Game timeout duration | 300 |
 
-## Security Considerations
+### Utility Scripts
 
-- All actions use commit-reveal mechanism
-- Role information is encrypted and stored off-chain
-- Signature verification for detective reveals
-- Input validation on all endpoints
-- Rate limiting (to be implemented)
+Initialize the deployed contract:
+```bash
+node scripts/initialize-contract.js
+```
 
-## Future Enhancements
+Update server signer address:
+```bash
+node scripts/update-server-signer.js
+```
 
-- PostgreSQL for persistent game state
-- JWT authentication
-- Rate limiting
-- Game replay system
-- Advanced mini-games
-- Tournament mode
-- Mobile app support
+Check faucet setup:
+```bash
+node scripts/check-faucet-setup.js
+```
 
-## License
+## 📜 License
 
 MIT

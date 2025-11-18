@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import RetroAnimation from "@/components/common/retro-animation"
 import { Player } from "@/hooks/useGame"
 import ColoredPlayerName from "@/components/game/colored-player-name"
-import FullscreenToggle from "@/components/common/fullscreen-toggle"
+import ScreenHeader from "@/components/common/screen-header"
 
 interface NightResolutionScreenProps {
   resolution: {
@@ -95,25 +95,16 @@ export default function NightResolutionScreen({ resolution, onContinue, game, cu
 
   return (
     <div className="min-h-screen flex flex-col gaming-bg scanlines">
-      {/* Full-width header with buttons */}
-      <div className="w-full bg-black/60 border-b border-white/20 py-2 px-4 flex justify-between items-center z-50">
-        <div className="flex gap-2">
-          <button
-            onClick={() => window.location.reload()}
-            className="w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded flex items-center justify-center"
-            title="Refresh Game State"
-          >
-            🔄
-          </button>
-          <div className="w-8 h-8 bg-black/60 rounded flex items-center justify-center border border-white/20">
-            <FullscreenToggle variant="icon" className="text-white text-sm" />
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-          <div className="text-xs text-gray-400 font-press-start">CONNECTED</div>
-        </div>
-      </div>
+      <ScreenHeader
+        isConnected={true}
+        players={game?.players?.map((addr: string) => ({
+          address: addr,
+          name: game?.playerNames?.[addr] || addr.slice(0, 8),
+          avatar: game?.playerAvatars?.[addr]
+        })) || []}
+        game={game}
+        currentPlayer={currentPlayer || null}
+      />
 
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-2xl p-8 bg-black/80 border-2 border-gray-700 text-center">
