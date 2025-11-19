@@ -4,23 +4,31 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #000000; /* Pure black */
-  --foreground: #FFFFFF; /* Bright White */
-  --card: #111111; /* Darker card background */
+  --background: #000000;
+  /* Pure black */
+  --foreground: #FFFFFF;
+  /* Bright White */
+  --card: #111111;
+  /* Darker card background */
   --card-foreground: #FFFFFF;
   --popover: #111111;
   --popover-foreground: #FFFFFF;
-  --primary: #4A8C4A; /* Subdued green */
+  --primary: #4A8C4A;
+  /* Subdued green */
   --primary-foreground: #000000;
-  --secondary: #1a1a1a; /* Darker secondary */
+  --secondary: #1a1a1a;
+  /* Darker secondary */
   --secondary-foreground: #FFFFFF;
   --muted: #1a1a1a;
   --muted-foreground: #CCCCCC;
-  --accent: #A259FF; /* Cosmic Purple */
+  --accent: #A259FF;
+  /* Cosmic Purple */
   --accent-foreground: #FFFFFF;
-  --destructive: #8B0000; /* Darker red */
+  --destructive: #8B0000;
+  /* Darker red */
   --destructive-foreground: #FFFFFF;
-  --border: #2a2a2a; /* Subtle border */
+  --border: #2a2a2a;
+  /* Subtle border */
   --input: #1a1a1a;
   --ring: #4A8C4A;
   --chart-1: #4A8C4A;
@@ -37,7 +45,7 @@
   --sidebar-accent-foreground: #FFFFFF;
   --sidebar-border: #2a2a2a;
   --sidebar-ring: #4A8C4A;
-  
+
   /* Gaming colors */
   --gaming-black: #000000;
   --gaming-dark: #111111;
@@ -47,7 +55,7 @@
   --gaming-yellow: #CCCC00;
   --gaming-gray: #1a1a1a;
   --gaming-white: #FFFFFF;
-  
+
   /* Font families */
   --font-press-start: 'Press Start 2P', sans-serif;
   --font-vt323: 'VT323', monospace;
@@ -131,7 +139,7 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  
+
   /* Gaming colors */
   --color-gaming-black: var(--gaming-black);
   --color-gaming-dark: var(--gaming-dark);
@@ -144,9 +152,9 @@
 }
 
 
-/* Wallet Selector Green Theme - Override Ant Design blue */
-/* Using exact classes from Aptos wallet-adapter-ant-design documentation */
-/* CSS imported AFTER ant-design CSS to ensure override */
+/* Wallet Selector Green Theme - Override default blue */
+/* Custom styling for wallet connection buttons */
+/* CSS imported to ensure proper styling override */
 
 /* Target all wallet button variants with maximum specificity */
 button.ant-btn.wallet-button,
@@ -228,11 +236,13 @@ button.wallet-button:focus,
   * {
     @apply border-border outline-ring/50;
   }
+
   html {
     overflow-x: hidden;
     overflow-y: auto;
     font-size: 80%;
   }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-press-start);
@@ -243,29 +253,43 @@ button.wallet-button:focus,
     overflow-y: auto;
     min-height: 100vh;
   }
-  
-  h1, h2, h3, h4, h5, h6 {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-press-start);
     -webkit-font-smoothing: none;
     -moz-osx-font-smoothing: grayscale;
     font-smooth: never;
   }
-  
-  button, .pixel-button, input, textarea, select {
+
+  button,
+  .pixel-button,
+  input,
+  textarea,
+  select {
     font-family: var(--font-press-start);
     -webkit-font-smoothing: none;
     -moz-osx-font-smoothing: grayscale;
     font-smooth: never;
   }
-  
-  p, span, div, a, label {
+
+  p,
+  span,
+  div,
+  a,
+  label {
     font-family: var(--font-press-start);
     -webkit-font-smoothing: none;
     -moz-osx-font-smoothing: grayscale;
     font-smooth: never;
   }
-  
-  code, pre {
+
+  code,
+  pre {
     font-family: var(--font-press-start);
     -webkit-font-smoothing: none;
     -moz-osx-font-smoothing: grayscale;
@@ -276,7 +300,7 @@ button.wallet-button:focus,
 /* Gaming background with subtle grid and minimal Pacman-style dotted stars */
 .gaming-bg {
   background-color: #000000;
-  background-image: 
+  background-image:
     /* Minimal Pacman-style dotted stars */
     radial-gradient(circle at 25% 25%, #FFFFFF 1px, transparent 1px),
     radial-gradient(circle at 75% 25%, #FFFFFF 1px, transparent 1px),
@@ -286,7 +310,7 @@ button.wallet-button:focus,
     /* Subtle grid overlay */
     linear-gradient(rgba(30, 30, 30, 0.1) 1px, transparent 1px),
     linear-gradient(90deg, rgba(30, 30, 30, 0.1) 1px, transparent 1px);
-  background-size: 
+  background-size:
     /* Star positions - minimal and clean */
     200px 200px, 180px 180px, 220px 220px, 160px 160px, 240px 240px,
     /* Grid */
@@ -297,9 +321,9 @@ button.wallet-button:focus,
 
 /* Enhanced Pepe green glow effects */
 .glow-green-intense {
-  text-shadow: 
-    0 0 2px var(--gaming-green), 
-    0 0 4px var(--gaming-green), 
+  text-shadow:
+    0 0 2px var(--gaming-green),
+    0 0 4px var(--gaming-green),
     0 0 8px var(--gaming-green),
     0 0 16px var(--gaming-green);
   color: var(--gaming-green);
@@ -333,7 +357,7 @@ button.wallet-button:focus,
   font-smooth: never;
   position: relative;
   overflow: hidden;
-  text-shadow: 
+  text-shadow:
     1px 1px 0px rgba(0, 0, 0, 0.8),
     2px 2px 0px rgba(0, 0, 0, 0.6),
     3px 3px 0px rgba(0, 0, 0, 0.4);
@@ -342,7 +366,7 @@ button.wallet-button:focus,
 .pixel-button:hover {
   transform: translateY(-1px);
   box-shadow: 0 0 4px currentColor, 0 0 8px currentColor;
-  text-shadow: 
+  text-shadow:
     1px 1px 0px rgba(0, 0, 0, 0.9),
     2px 2px 0px rgba(0, 0, 0, 0.7),
     3px 3px 0px rgba(0, 0, 0, 0.5),
@@ -355,7 +379,9 @@ button.wallet-button:focus,
 }
 
 /* Pixelated input and form elements */
-input, textarea, select {
+input,
+textarea,
+select {
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
@@ -376,7 +402,7 @@ input, textarea, select {
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
   color: #FFFFFF;
-  text-shadow: 
+  text-shadow:
     1px 1px 0px #2A2A2A,
     2px 2px 0px #1A1A1A,
     3px 3px 0px #000000;
@@ -394,7 +420,7 @@ input, textarea, select {
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
   color: #4A8C4A;
-  text-shadow: 
+  text-shadow:
     1px 1px 0px #2d5a2d,
     2px 2px 0px #1a3d1a,
     3px 3px 0px #000000,
@@ -412,7 +438,7 @@ input, textarea, select {
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
   color: #FF4444;
-  text-shadow: 
+  text-shadow:
     1px 1px 0px #cc0000,
     2px 2px 0px #990000,
     3px 3px 0px #000000,
@@ -430,7 +456,7 @@ input, textarea, select {
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
   color: #A259FF;
-  text-shadow: 
+  text-shadow:
     1px 1px 0px #7a3fcc,
     2px 2px 0px #5a2e99,
     3px 3px 0px #000000,
@@ -448,7 +474,7 @@ input, textarea, select {
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
   color: #FFEA00;
-  text-shadow: 
+  text-shadow:
     1px 1px 0px #ccb800,
     2px 2px 0px #998800,
     3px 3px 0px #000000,
@@ -467,7 +493,7 @@ input, textarea, select {
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
   color: #FFFFFF;
-  text-shadow: 
+  text-shadow:
     1px 1px 0px #2A2A2A,
     2px 2px 0px #1A1A1A,
     3px 3px 0px #000000,
@@ -485,7 +511,7 @@ input, textarea, select {
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
   color: #00AAFF;
-  text-shadow: 
+  text-shadow:
     1px 1px 0px #0088CC,
     2px 2px 0px #006699,
     3px 3px 0px #000000,
@@ -503,7 +529,7 @@ input, textarea, select {
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
   color: #FF8800;
-  text-shadow: 
+  text-shadow:
     1px 1px 0px #CC6600,
     2px 2px 0px #994400,
     3px 3px 0px #000000,
@@ -527,8 +553,8 @@ input, textarea, select {
 
 /* Enhanced glow effects for colors */
 .glow-green {
-  text-shadow: 
-    0 0 5px var(--gaming-green), 
+  text-shadow:
+    0 0 5px var(--gaming-green),
     0 0 10px var(--gaming-green),
     0 0 15px var(--gaming-green),
     0 0 20px var(--gaming-green);
@@ -536,8 +562,8 @@ input, textarea, select {
 }
 
 .glow-red {
-  text-shadow: 
-    0 0 5px var(--gaming-red), 
+  text-shadow:
+    0 0 5px var(--gaming-red),
     0 0 10px var(--gaming-red),
     0 0 15px var(--gaming-red),
     0 0 20px var(--gaming-red);
@@ -545,8 +571,8 @@ input, textarea, select {
 }
 
 .glow-purple {
-  text-shadow: 
-    0 0 5px var(--gaming-purple), 
+  text-shadow:
+    0 0 5px var(--gaming-purple),
     0 0 10px var(--gaming-purple),
     0 0 15px var(--gaming-purple),
     0 0 20px var(--gaming-purple);
@@ -554,8 +580,8 @@ input, textarea, select {
 }
 
 .glow-yellow {
-  text-shadow: 
-    0 0 5px var(--gaming-yellow), 
+  text-shadow:
+    0 0 5px var(--gaming-yellow),
     0 0 10px var(--gaming-yellow),
     0 0 15px var(--gaming-yellow),
     0 0 20px var(--gaming-yellow);
@@ -563,8 +589,8 @@ input, textarea, select {
 }
 
 .glow-white {
-  text-shadow: 
-    0 0 5px #FFFFFF, 
+  text-shadow:
+    0 0 5px #FFFFFF,
     0 0 10px #FFFFFF,
     0 0 15px #FFFFFF,
     0 0 20px #FFFFFF;
@@ -572,8 +598,8 @@ input, textarea, select {
 }
 
 .glow-blue {
-  text-shadow: 
-    0 0 5px #00AAFF, 
+  text-shadow:
+    0 0 5px #00AAFF,
     0 0 10px #00AAFF,
     0 0 15px #00AAFF,
     0 0 20px #00AAFF;
@@ -582,9 +608,17 @@ input, textarea, select {
 
 /* Retro animations with stepped transitions */
 @keyframes retro-pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.02); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.02);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 .retro-pulse {
@@ -592,9 +626,17 @@ input, textarea, select {
 }
 
 @keyframes retro-blink {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
 
 .retro-blink {
@@ -612,8 +654,13 @@ input, textarea, select {
 }
 
 @keyframes retro-spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Progress bar with pixel styling */
@@ -642,9 +689,17 @@ input, textarea, select {
 
 /* Gaming pixel art animation */
 @keyframes pixel-breath {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 .pixel-breath {
@@ -663,20 +718,18 @@ input, textarea, select {
   left: 0;
   right: 0;
   bottom: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.1) 0px,
-    rgba(0, 0, 0, 0.1) 1px,
-    transparent 1px,
-    transparent 2px
-  );
+  background: repeating-linear-gradient(0deg,
+      rgba(0, 0, 0, 0.1) 0px,
+      rgba(0, 0, 0, 0.1) 1px,
+      transparent 1px,
+      transparent 2px);
   pointer-events: none;
   z-index: 10;
 }
 
 /* Enhanced loading animation styles */
 .loading-glow {
-  box-shadow: 
+  box-shadow:
     0 0 10px rgba(74, 140, 74, 0.3),
     0 0 20px rgba(74, 140, 74, 0.2),
     0 0 30px rgba(74, 140, 74, 0.1);
@@ -692,6 +745,7 @@ input, textarea, select {
     opacity: 0;
     transform: translateX(-20px);
   }
+
   100% {
     opacity: 1;
     transform: translateX(0);
@@ -708,9 +762,11 @@ input, textarea, select {
     opacity: 0;
     transform: scale(0.5) translateY(-50px);
   }
+
   60% {
     transform: scale(1.05) translateY(5px);
   }
+
   100% {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -723,12 +779,15 @@ input, textarea, select {
 }
 
 @keyframes taskGlow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow:
       0 0 10px rgba(74, 140, 74, 0.3),
       0 0 20px rgba(74, 140, 74, 0.2),
       inset 0 0 10px rgba(74, 140, 74, 0.1);
   }
+
   50% {
     box-shadow:
       0 0 20px rgba(74, 140, 74, 0.6),
@@ -742,12 +801,15 @@ input, textarea, select {
 }
 
 @keyframes taskGlowRed {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow:
       0 0 10px rgba(239, 68, 68, 0.3),
       0 0 20px rgba(239, 68, 68, 0.2),
       inset 0 0 10px rgba(239, 68, 68, 0.1);
   }
+
   50% {
     box-shadow:
       0 0 20px rgba(239, 68, 68, 0.6),
@@ -766,9 +828,11 @@ input, textarea, select {
     opacity: 0;
     transform: scale(0.3) rotateY(-90deg);
   }
+
   50% {
     transform: scale(1.05) rotateY(5deg);
   }
+
   100% {
     opacity: 1;
     transform: scale(1) rotateY(0deg);
@@ -776,14 +840,14 @@ input, textarea, select {
 }
 
 .chat-message-glow {
-  box-shadow: 
+  box-shadow:
     0 0 5px rgba(74, 140, 74, 0.2),
     0 0 10px rgba(74, 140, 74, 0.1);
   transition: all 0.3s ease;
 }
 
 .chat-message-glow:hover {
-  box-shadow: 
+  box-shadow:
     0 0 10px rgba(74, 140, 74, 0.4),
     0 0 20px rgba(74, 140, 74, 0.2);
   transform: translateY(-1px);
@@ -812,7 +876,7 @@ input, textarea, select {
 
 .task-card-glow:hover {
   transform: translateY(-2px);
-  box-shadow: 
+  box-shadow:
     0 4px 15px rgba(74, 140, 74, 0.3),
     0 0 20px rgba(74, 140, 74, 0.1);
 }
@@ -835,8 +899,15 @@ input, textarea, select {
 }
 
 @keyframes tabGlow {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Input Focus Effects */
@@ -845,7 +916,7 @@ input, textarea, select {
 }
 
 .pixel-input-focus:focus {
-  box-shadow: 
+  box-shadow:
     0 0 10px rgba(74, 140, 74, 0.5),
     0 0 20px rgba(74, 140, 74, 0.2);
   border-color: #4A8C4A;
@@ -853,8 +924,15 @@ input, textarea, select {
 
 /* Floating Elements Animation */
 @keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
 .floating-element {
@@ -871,15 +949,18 @@ input, textarea, select {
 
 /* Pulse Animation for Timer */
 @keyframes timerPulse {
-  0%, 100% { 
+
+  0%,
+  100% {
     transform: scale(1);
-    text-shadow: 
+    text-shadow:
       0 0 5px rgba(74, 140, 74, 0.6),
       0 0 10px rgba(74, 140, 74, 0.3);
   }
-  50% { 
+
+  50% {
     transform: scale(1.05);
-    text-shadow: 
+    text-shadow:
       0 0 10px rgba(74, 140, 74, 0.8),
       0 0 20px rgba(74, 140, 74, 0.4);
   }
@@ -891,9 +972,17 @@ input, textarea, select {
 
 /* Task Completion Animation */
 @keyframes taskComplete {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 .task-complete {
@@ -905,7 +994,7 @@ input, textarea, select {
   .responsive-text {
     font-size: clamp(1rem, 4vw, 2rem);
   }
-  
+
   /* Reduce 3D effects on mobile for better performance */
   .pixel-text-3d-white,
   .pixel-text-3d-green,
@@ -915,15 +1004,15 @@ input, textarea, select {
   .pixel-text-3d-blue,
   .pixel-text-3d-orange {
     transform: perspective(400px) rotateX(3deg);
-    text-shadow: 
+    text-shadow:
       1px 1px 0px #2A2A2A,
       2px 2px 0px #1A1A1A,
       3px 3px 0px #000000;
   }
-  
+
   /* Reduce glow effects on mobile */
   .pixel-text-3d-white {
-    text-shadow: 
+    text-shadow:
       1px 1px 0px #2A2A2A,
       2px 2px 0px #1A1A1A,
       3px 3px 0px #000000,
@@ -945,9 +1034,20 @@ input, textarea, select {
 
 /* Pixel border animations */
 @keyframes pixel-border-pulse {
-  0% { border-color: var(--gaming-green); opacity: 0.3; }
-  50% { border-color: var(--gaming-green); opacity: 0.8; }
-  100% { border-color: var(--gaming-green); opacity: 0.3; }
+  0% {
+    border-color: var(--gaming-green);
+    opacity: 0.3;
+  }
+
+  50% {
+    border-color: var(--gaming-green);
+    opacity: 0.8;
+  }
+
+  100% {
+    border-color: var(--gaming-green);
+    opacity: 0.3;
+  }
 }
 
 .pixel-border-pulse {
@@ -956,14 +1056,22 @@ input, textarea, select {
 
 /* 3D text animations */
 @keyframes pixel-3d-float {
-  0% { transform: perspective(1000px) rotateX(15deg) translateY(0px); }
-  50% { transform: perspective(1000px) rotateX(15deg) translateY(-5px); }
-  100% { transform: perspective(1000px) rotateX(15deg) translateY(0px); }
+  0% {
+    transform: perspective(1000px) rotateX(15deg) translateY(0px);
+  }
+
+  50% {
+    transform: perspective(1000px) rotateX(15deg) translateY(-5px);
+  }
+
+  100% {
+    transform: perspective(1000px) rotateX(15deg) translateY(0px);
+  }
 }
 
 @keyframes pixel-3d-glow {
-  0% { 
-    text-shadow: 
+  0% {
+    text-shadow:
       2px 2px 0px #000,
       4px 4px 0px #000,
       6px 6px 0px #000,
@@ -985,8 +1093,9 @@ input, textarea, select {
       38px 38px 0px #000,
       40px 40px 0px #000;
   }
-  50% { 
-    text-shadow: 
+
+  50% {
+    text-shadow:
       2px 2px 0px #000,
       4px 4px 0px #000,
       6px 6px 0px #000,
@@ -1009,8 +1118,9 @@ input, textarea, select {
       40px 40px 0px #000,
       0 0 20px currentColor;
   }
-  100% { 
-    text-shadow: 
+
+  100% {
+    text-shadow:
       2px 2px 0px #000,
       4px 4px 0px #000,
       6px 6px 0px #000,
@@ -1058,7 +1168,7 @@ input, textarea, select {
   font-smooth: never;
   position: relative;
   overflow: hidden;
-  text-shadow: 
+  text-shadow:
     1px 1px 0px #000,
     2px 2px 0px #000,
     3px 3px 0px #000;
@@ -1076,7 +1186,7 @@ input, textarea, select {
   letter-spacing: 0.1em;
   color: #ffffff;
   text-shadow: 1px 1px 0px #0B3F2A;
-  
+
   /* Layout */
   display: inline-flex;
   align-items: center;
@@ -1088,18 +1198,18 @@ input, textarea, select {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  
+
   /* 3D Base Colors */
   background: #2ECC71;
   border-bottom: 4px solid #1F7A49;
-  box-shadow: 
+  box-shadow:
     0 4px 0 #1F7A49,
     0 8px 0 #0B3F2A,
     0 0 0 1px #1F7A49;
-  
+
   /* Transitions */
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  
+
   /* Disable font smoothing for pixelated look */
   -webkit-font-smoothing: none;
   -moz-osx-font-smoothing: grayscale;
@@ -1117,10 +1227,10 @@ input, textarea, select {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, 
-    rgba(255, 255, 255, 0.3) 0%, 
-    rgba(255, 255, 255, 0.1) 50%, 
-    rgba(255, 255, 255, 0.3) 100%);
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0.3) 0%,
+      rgba(255, 255, 255, 0.1) 50%,
+      rgba(255, 255, 255, 0.3) 100%);
   border-radius: 6px 6px 0 0;
   pointer-events: none;
 }
@@ -1128,7 +1238,7 @@ input, textarea, select {
 /* Hover State - Button lifts up */
 .btn-pixel:hover {
   transform: translateY(-3px);
-  box-shadow: 
+  box-shadow:
     0 7px 0 #1F7A49,
     0 11px 0 #0B3F2A,
     0 0 0 1px #1F7A49,
@@ -1138,7 +1248,7 @@ input, textarea, select {
 /* Active/Pressed State - Button sinks down */
 .btn-pixel:active {
   transform: translateY(2px);
-  box-shadow: 
+  box-shadow:
     0 2px 0 #1F7A49,
     0 4px 0 #0B3F2A,
     0 0 0 1px #1F7A49;
@@ -1147,7 +1257,7 @@ input, textarea, select {
 /* Focus State - Accessibility glow */
 .btn-pixel:focus {
   outline: none;
-  box-shadow: 
+  box-shadow:
     0 4px 0 #1F7A49,
     0 8px 0 #0B3F2A,
     0 0 0 1px #1F7A49,
@@ -1159,7 +1269,7 @@ input, textarea, select {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
-  box-shadow: 
+  box-shadow:
     0 4px 0 #1F7A49,
     0 8px 0 #0B3F2A,
     0 0 0 1px #1F7A49;
@@ -1167,7 +1277,7 @@ input, textarea, select {
 
 .btn-pixel:disabled:hover {
   transform: none;
-  box-shadow: 
+  box-shadow:
     0 4px 0 #1F7A49,
     0 8px 0 #0B3F2A,
     0 0 0 1px #1F7A49;
@@ -1177,7 +1287,7 @@ input, textarea, select {
 .btn-pixel--red {
   background: #E74C3C;
   border-bottom-color: #C0392B;
-  box-shadow: 
+  box-shadow:
     0 4px 0 #C0392B,
     0 8px 0 #7B241C,
     0 0 0 1px #C0392B;
@@ -1185,7 +1295,7 @@ input, textarea, select {
 }
 
 .btn-pixel--red:hover {
-  box-shadow: 
+  box-shadow:
     0 7px 0 #C0392B,
     0 11px 0 #7B241C,
     0 0 0 1px #C0392B,
@@ -1193,14 +1303,14 @@ input, textarea, select {
 }
 
 .btn-pixel--red:active {
-  box-shadow: 
+  box-shadow:
     0 2px 0 #C0392B,
     0 4px 0 #7B241C,
     0 0 0 1px #C0392B;
 }
 
 .btn-pixel--red:focus {
-  box-shadow: 
+  box-shadow:
     0 4px 0 #C0392B,
     0 8px 0 #7B241C,
     0 0 0 1px #C0392B,
@@ -1210,7 +1320,7 @@ input, textarea, select {
 .btn-pixel--blue {
   background: #3498DB;
   border-bottom-color: #2980B9;
-  box-shadow: 
+  box-shadow:
     0 4px 0 #2980B9,
     0 8px 0 #1B4F72,
     0 0 0 1px #2980B9;
@@ -1218,7 +1328,7 @@ input, textarea, select {
 }
 
 .btn-pixel--blue:hover {
-  box-shadow: 
+  box-shadow:
     0 7px 0 #2980B9,
     0 11px 0 #1B4F72,
     0 0 0 1px #2980B9,
@@ -1226,14 +1336,14 @@ input, textarea, select {
 }
 
 .btn-pixel--blue:active {
-  box-shadow: 
+  box-shadow:
     0 2px 0 #2980B9,
     0 4px 0 #1B4F72,
     0 0 0 1px #2980B9;
 }
 
 .btn-pixel--blue:focus {
-  box-shadow: 
+  box-shadow:
     0 4px 0 #2980B9,
     0 8px 0 #1B4F72,
     0 0 0 1px #2980B9,
@@ -1243,7 +1353,7 @@ input, textarea, select {
 .btn-pixel--purple {
   background: #9B59B6;
   border-bottom-color: #8E44AD;
-  box-shadow: 
+  box-shadow:
     0 4px 0 #8E44AD,
     0 8px 0 #5B2C6F,
     0 0 0 1px #8E44AD;
@@ -1251,7 +1361,7 @@ input, textarea, select {
 }
 
 .btn-pixel--purple:hover {
-  box-shadow: 
+  box-shadow:
     0 7px 0 #8E44AD,
     0 11px 0 #5B2C6F,
     0 0 0 1px #8E44AD,
@@ -1259,14 +1369,14 @@ input, textarea, select {
 }
 
 .btn-pixel--purple:active {
-  box-shadow: 
+  box-shadow:
     0 2px 0 #8E44AD,
     0 4px 0 #5B2C6F,
     0 0 0 1px #8E44AD;
 }
 
 .btn-pixel--purple:focus {
-  box-shadow: 
+  box-shadow:
     0 4px 0 #8E44AD,
     0 8px 0 #5B2C6F,
     0 0 0 1px #8E44AD,
@@ -1276,7 +1386,7 @@ input, textarea, select {
 .btn-pixel--yellow {
   background: #F1C40F;
   border-bottom-color: #D4AC0D;
-  box-shadow: 
+  box-shadow:
     0 4px 0 #D4AC0D,
     0 8px 0 #7D6608,
     0 0 0 1px #D4AC0D;
@@ -1285,7 +1395,7 @@ input, textarea, select {
 }
 
 .btn-pixel--yellow:hover {
-  box-shadow: 
+  box-shadow:
     0 7px 0 #D4AC0D,
     0 11px 0 #7D6608,
     0 0 0 1px #D4AC0D,
@@ -1293,14 +1403,14 @@ input, textarea, select {
 }
 
 .btn-pixel--yellow:active {
-  box-shadow: 
+  box-shadow:
     0 2px 0 #D4AC0D,
     0 4px 0 #7D6608,
     0 0 0 1px #D4AC0D;
 }
 
 .btn-pixel--yellow:focus {
-  box-shadow: 
+  box-shadow:
     0 4px 0 #D4AC0D,
     0 8px 0 #7D6608,
     0 0 0 1px #D4AC0D,
@@ -1313,14 +1423,14 @@ input, textarea, select {
   padding: 8px 16px;
   min-height: 36px;
   border-bottom-width: 3px;
-  box-shadow: 
+  box-shadow:
     0 3px 0 #1F7A49,
     0 6px 0 #0B3F2A,
     0 0 0 1px #1F7A49;
 }
 
 .btn-pixel--small:hover {
-  box-shadow: 
+  box-shadow:
     0 6px 0 #1F7A49,
     0 9px 0 #0B3F2A,
     0 0 0 1px #1F7A49,
@@ -1332,14 +1442,14 @@ input, textarea, select {
   padding: 16px 32px;
   min-height: 60px;
   border-bottom-width: 5px;
-  box-shadow: 
+  box-shadow:
     0 5px 0 #1F7A49,
     0 10px 0 #0B3F2A,
     0 0 0 1px #1F7A49;
 }
 
 .btn-pixel--large:hover {
-  box-shadow: 
+  box-shadow:
     0 8px 0 #1F7A49,
     0 13px 0 #0B3F2A,
     0 0 0 1px #1F7A49,

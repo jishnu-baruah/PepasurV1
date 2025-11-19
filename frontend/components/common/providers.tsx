@@ -1,9 +1,12 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AptosWalletAdapterProvider } from '@aptos-labs/wallet-adapter-react';
-import { Network } from '@aptos-labs/ts-sdk';
+import { WagmiProvider } from 'wagmi';
+import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { ReactNode, useState } from 'react';
+import { config } from '@/lib/wagmi';
+import { WalletProvider } from '@/contexts/WalletContext';
+import '@rainbow-me/rainbowkit/styles.css';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -21,25 +24,14 @@ export function Providers({ children }: ProvidersProps) {
   }));
 
   return (
-    <AptosWalletAdapterProvider
-      autoConnect={true}
-      dappConfig={{
-        network: Network.TESTNET,
-        aptosApiKeys: {
-          testnet: process.env.NEXT_PUBLIC_APTOS_API_KEY,
-        },
-        aptosConnect: {
-          // Disable social login providers (Google, Apple)
-          socialProviders: []
-        }
-      }}
-      onError={(error) => {
-        console.log("Wallet adapter error:", error);
-      }}
-    >
+    <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        {children}
+        <RainbowKitProvider>
+          <WalletProvider>
+            {children}
+          </WalletProvider>
+        </RainbowKitProvider>
       </QueryClientProvider>
-    </AptosWalletAdapterProvider>
+    </WagmiProvider>
   );
 }

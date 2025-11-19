@@ -1,103 +1,33 @@
-const { Aptos, AptosConfig, Network, Account, Ed25519PrivateKey } = require("@aptos-labs/ts-sdk");
 const crypto = require('crypto');
 
 class StakingService {
   constructor() {
-    this.stakeAmount = 100000; // 0.001 APT
+    this.stakeAmount = 100000; // 0.001 token (in smallest unit)
     this.minPlayers = 4;
-    this.totalPool = 400000; // 0.004 APT (4 players x 0.001 APT)
+    this.totalPool = 400000; // 0.004 token (4 players x 0.001 token)
     this.stakedGames = new Map(); // Track staked games
     this.playerStakes = new Map(); // Track individual player stakes
-    this.aptos = null;
-    this.account = null;
-    this.initialize();
-  }
-
-  async initialize() {
-    try {
-      // Determine network from environment
-      const network = process.env.NETWORK === 'mainnet' ? Network.MAINNET :
-                      process.env.NETWORK === 'testnet' ? Network.TESTNET :
-                      Network.DEVNET;
-
-      // Initialize Aptos client with SDK v5
-      const config = new AptosConfig({
-        network,
-        fullnode: process.env.APTOS_NODE_URL
-      });
-      this.aptos = new Aptos(config);
-
-      // Initialize account if private key is provided
-      if (process.env.SERVER_PRIVATE_KEY) {
-        const privateKeyHex = process.env.SERVER_PRIVATE_KEY.replace('ed25519-priv-0x', '').replace('0x', '');
-        const privateKey = new Ed25519PrivateKey(privateKeyHex);
-        this.account = Account.fromPrivateKey({ privateKey });
-        console.log('🔑 Staking account initialized:', this.account.accountAddress.toString());
-      }
-
-      console.log('💰 Staking service initialized successfully on', network);
-      console.log(`💰 Stake amount: ${this.stakeAmount / 100000000} APT per player`);
-      console.log(`💰 Total pool: ${this.totalPool / 100000000} APT for 4 players`);
-    } catch (error) {
-      console.error('❌ Error initializing staking service:', error);
-    }
+    console.log('💰 Staking service initialized successfully');
+    console.log(`💰 Stake amount: ${this.stakeAmount} (smallest unit) per player`);
+    console.log(`💰 Total pool: ${this.totalPool} (smallest unit) for 4 players`);
   }
 
   async checkBalance(playerAddress) {
-    try {
-      if (!this.aptos) {
-        console.log('⚠️ Aptos client not initialized, using mock balance for testing');
-        return {
-          balance: "100000000", // 1 APT
-          balanceInAPT: "1.0",
-          sufficient: true,
-          mock: true
-        };
-      }
-
-      try {
-        // Use getAccountAPTAmount - simpler and more reliable
-        const balance = await this.aptos.getAccountAPTAmount({
-          accountAddress: playerAddress
-        });
-
-        console.log(`💰 Player ${playerAddress} balance: ${balance / 100000000} APT`);
-
-        return {
-          balance: balance.toString(),
-          balanceInAPT: (balance / 100000000).toString(),
-          sufficient: balance >= this.stakeAmount
-        };
-      } catch (error) {
-        console.log('⚠️ getAccountAPTAmount failed, trying getAccountResources...', error.message);
-
-        // Fallback to getAccountResources
-        const resources = await this.aptos.getAccountResources({
-          accountAddress: playerAddress
-        });
-        const aptosCoinResource = resources.find(
-          (r) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
-        );
-        const balance = aptosCoinResource ? parseInt(aptosCoinResource.data.coin.value) : 0;
-
-        console.log(`💰 Player ${playerAddress} balance (Resources): ${balance / 100000000} APT`);
-
-        return {
-          balance: balance.toString(),
-          balanceInAPT: (balance / 100000000).toString(),
-          sufficient: balance >= this.stakeAmount
-        };
-      }
-    } catch (error) {
-      console.error('❌ Error checking balance:', error);
-      throw error;
-    }
+    // Balance checking is now handled by the wallet on the frontend
+    // This method is kept for backward compatibility but returns mock data
+    console.log('⚠️ Balance checking should be done on frontend with wallet integration');
+    return {
+      balance: "1000000000000000000", // 1 token (18 decimals)
+      balanceInToken: "1.0",
+      sufficient: true,
+      mock: true
+    };
   }
 
   async stakeForGame(gameId, playerAddress, roomCode) {
     try {
-      console.log(`💰 Player ${playerAddress} staking ${this.stakeAmount} APT for game ${gameId}`);
-      
+      console.log(`💰 Player ${playerAddress} staking ${this.stakeAmount} tokens for game ${gameId}`);
+
       if (!this.validateRoomCode(roomCode)) {
         throw new Error('Invalid room code');
       }
@@ -113,7 +43,7 @@ class StakingService {
       }
 
       const game = this.stakedGames.get(gameId);
-      
+
       if (game.players.includes(playerAddress)) {
         throw new Error('Player already staked for this game');
       }
@@ -125,12 +55,14 @@ class StakingService {
       if (game.status !== 'waiting') {
         throw new Error('Game has already started');
       }
-const aptosService = new (require('../aptos/AptosService'))();
-      const txHash = await aptosService.joinGame(gameId, playerAddress);
+
+      // Note: Actual staking happens on the frontend via wallet interaction
+      // This backend method just tracks the game state
+      const txHash = `mock-tx-${Date.now()}`; // Mock transaction hash for tracking
 
       game.players.push(playerAddress);
       game.totalStaked += this.stakeAmount;
-      
+
       this.playerStakes.set(`${gameId}-${playerAddress}`, {
         gameId: gameId,
         playerAddress: playerAddress,
@@ -141,7 +73,7 @@ const aptosService = new (require('../aptos/AptosService'))();
       });
 
       console.log(`💰 Stake successful! Game ${gameId} now has ${game.players.length}/${this.minPlayers} players`);
-      console.log(`💰 Total staked: ${game.totalStaked} APT`);
+      console.log(`💰 Total staked: ${game.totalStaked} tokens`);
 
       if (game.players.length === this.minPlayers) {
         game.status = 'full';
@@ -175,7 +107,7 @@ const aptosService = new (require('../aptos/AptosService'))();
       playersCount: game.players.length,
       minPlayers: this.minPlayers,
       totalStaked: game.totalStaked.toString(),
-      totalStakedInAPT: (game.totalStaked / 100000000).toString(),
+      totalStakedInToken: (game.totalStaked / 1000000000000000000).toString(),
       status: game.status,
       createdAt: game.createdAt,
       isReady: game.players.length === this.minPlayers
@@ -186,7 +118,7 @@ const aptosService = new (require('../aptos/AptosService'))();
   getPlayerStakeInfo(gameId, playerAddress) {
     const stakeKey = `${gameId}-${playerAddress}`;
     const stake = this.playerStakes.get(stakeKey);
-    
+
     if (!stake) {
       return null;
     }
@@ -195,7 +127,6 @@ const aptosService = new (require('../aptos/AptosService'))();
       gameId: stake.gameId,
       playerAddress: stake.playerAddress,
       amount: stake.amount.toString(),
-      amountInAPT: (stake.amount / 100000000).toString(),
       txHash: stake.txHash,
       timestamp: stake.timestamp,
       status: stake.status
@@ -287,13 +218,28 @@ const aptosService = new (require('../aptos/AptosService'))();
     }
   }
 
-  async distributeRewards(gameId, rewards) {
+  async distributeRewards(gameId, rewards, blockchainService = null) {
     try {
-      const aptosService = new (require('../aptos/AptosService'))();
+      // Use provided blockchain service (EVMService)
+      let txHash;
       const winners = rewards.rewards.map((r) => r.playerAddress);
       const payoutAmounts = rewards.rewards.map((r) => BigInt(r.totalReceived));
 
-      const txHash = await aptosService.submitSettlement(gameId, winners, payoutAmounts);
+      if (blockchainService) {
+        // Use the provided blockchain service (EVMService)
+        console.log(`💰 Using provided blockchain service for settlement`);
+
+        // Check if it's EVMService (has settleGame)
+        if (typeof blockchainService.settleGame === 'function') {
+          // EVMService - uses ECDSA signatures
+          console.log(`💰 Settling game ${gameId} with EVMService using ECDSA signatures`);
+          txHash = await blockchainService.settleGame(gameId, winners, payoutAmounts);
+        } else {
+          throw new Error('Blockchain service does not support settlement operations');
+        }
+      } else {
+        throw new Error('No blockchain service provided for settlement');
+      }
 
       const game = this.stakedGames.get(gameId);
       if (game) {
@@ -301,17 +247,22 @@ const aptosService = new (require('../aptos/AptosService'))();
         game.completedAt = Date.now();
       }
 
-      // Format distributions for frontend with APT conversion
+      // Use EVM token decimals (18)
+      const decimals = 1e18;
+      const tokenSymbol = process.env.NATIVE_TOKEN_SYMBOL || 'ETH';
+
+      // Format distributions for frontend with proper decimal conversion
       const distributions = rewards.rewards.map((r) => ({
         playerAddress: r.playerAddress,
         role: r.role,
         stakeAmount: r.stakeAmount,
         rewardAmount: r.rewardAmount,
         totalReceived: r.totalReceived,
-        // Add APT-formatted values for display
-        stakeAmountInAPT: (parseInt(r.stakeAmount) / 100000000).toFixed(4),
-        rewardInAPT: (parseInt(r.rewardAmount) / 100000000).toFixed(4),
-        totalReceivedInAPT: (parseInt(r.totalReceived) / 100000000).toFixed(4),
+        // Add token-formatted values for display
+        stakeAmountInToken: (parseInt(r.stakeAmount) / decimals).toFixed(4),
+        rewardInToken: (parseInt(r.rewardAmount) / decimals).toFixed(4),
+        totalReceivedInToken: (parseInt(r.totalReceived) / decimals).toFixed(4),
+        tokenSymbol: tokenSymbol,
       }));
 
       return {
@@ -346,7 +297,6 @@ const aptosService = new (require('../aptos/AptosService'))();
         playersCount: game.players.length,
         minPlayers: this.minPlayers,
         totalStaked: game.totalStaked.toString(),
-        totalStakedInAPT: (game.totalStaked / 100000000).toString(),
         status: game.status,
         createdAt: game.createdAt,
         isReady: game.players.length === this.minPlayers

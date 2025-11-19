@@ -5,6 +5,16 @@ const { formatTimeRemaining } = require('../utils/timeFormatter');
 
 const faucetService = new FaucetService();
 
+// Initialize faucet service
+(async () => {
+  try {
+    await faucetService.initialize();
+    console.log('✅ Faucet service initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize faucet service:', error);
+  }
+})();
+
 /**
  * @swagger
  * /api/faucet/claim:
@@ -24,7 +34,7 @@ const faucetService = new FaucetService();
  *             properties:
  *               userAddress:
  *                 type: string
- *                 description: The Aptos address of the user claiming tokens.
+ *                 description: The EVM address of the user claiming tokens.
  *     responses:
  *       200:
  *         description: Tokens claimed successfully.
@@ -43,16 +53,20 @@ const faucetService = new FaucetService();
  *                       type: string
  *                     amount:
  *                       type: number
- *                     amountOctas:
- *                       type: number
+ *                     amountWei:
+ *                       type: string
  *                     recipient:
  *                       type: string
  *                     nextClaimTime:
  *                       type: string
  *                     message:
  *                       type: string
+ *                     tokenSymbol:
+ *                       type: string
  *       400:
  *         description: Bad request, e.g., missing or invalid user address.
+ *       429:
+ *         description: Rate limit exceeded.
  *       500:
  *         description: Internal server error.
  */
@@ -110,7 +124,7 @@ router.post('/claim', async (req, res) => {
  *         schema:
  *           type: string
  *         required: true
- *         description: The Aptos address of the user.
+ *         description: The EVM address of the user.
  *     responses:
  *       200:
  *         description: Faucet information retrieved successfully.
@@ -127,6 +141,8 @@ router.post('/claim', async (req, res) => {
  *                   properties:
  *                     faucetAmount:
  *                       type: number
+ *                     tokenSymbol:
+ *                       type: string
  *                     cooldownHours:
  *                       type: number
  *                     canClaim:

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { apiService } from "@/services/api"
+import { activeChain } from "@/lib/wagmi"
 
 interface FaucetButtonProps {
   walletAddress: string | null
@@ -53,7 +54,7 @@ export default function FaucetButton({ walletAddress, onSuccess }: FaucetButtonP
       const response = await apiService.claimFaucet(walletAddress)
 
       if (response.success && response.data) {
-        setMessage(`Success! Sent ${response.data.amount} APT to your wallet`)
+        setMessage(`Success! Sent ${response.data.amount} ${activeChain.nativeCurrency.symbol} to your wallet`)
         setCanClaim(false)
 
         // Show transaction hash
@@ -85,7 +86,7 @@ export default function FaucetButton({ walletAddress, onSuccess }: FaucetButtonP
       {/* Title and Info */}
       <div className="flex-shrink-0">
         <h3 className="font-press-start text-[10px] text-white">TEST FAUCET</h3>
-        <p className="text-[8px] text-gray-400">Get 0.01 APT</p>
+        <p className="text-[8px] text-gray-400">Get 0.01 {activeChain.nativeCurrency.symbol}</p>
       </div>
 
       {/* Button */}

@@ -12,17 +12,15 @@ const faucetRoutes = require('./routes/faucet');
 
 const GameManager = require('./services/game/GameManager');
 const SocketManager = require('./services/core/SocketManager');
-const AptosService = require('./services/aptos/AptosService');
+const EVMService = require('./services/evm/EVMService');
 
 const app = express();
 const server = http.createServer(app);
 
 // Enhanced CORS configuration for network access
-const allowedOrigins = [
-  'https://aptos.pepasur.xyz',
-  'http://localhost:3000',
-  'http://localhost:3001'
-];
+// Parse allowed origins from environment variable or use defaults
+const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001';
+const allowedOrigins = allowedOriginsEnv.split(',').map(origin => origin.trim());
 
 const corsOptions = {
   origin: function (origin, callback) {
@@ -74,15 +72,23 @@ app.use((req, res, next) => {
 });
 
 // Initialize services
-const aptosService = new AptosService(); // Initialize AptosService first
-const gameManager = new GameManager(null, aptosService); // Pass aptosService to GameManager
+const evmService = new EVMService();
+const gameManager = new GameManager(null, evmService); // Pass evmService to GameManager
 const socketManager = new SocketManager(io, gameManager);
 
 // Set the socketManager reference in gameManager
 gameManager.socketManager = socketManager;
 
+// Initialize EVM service asynchronously
+evmService.initialize().then(() => {
+  console.log('✅ EVM Service initialized successfully');
+}).catch((error) => {
+  console.error('❌ Failed to initialize EVM Service:', error);
+  console.error('⚠️ Server will continue but blockchain operations will fail');
+});
+
 // Routes
-app.use('/api/game', gameRoutes(gameManager, aptosService));
+app.use('/api/game', gameRoutes(gameManager, evmService));
 
 
 app.use('/api/faucet', faucetRoutes);

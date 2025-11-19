@@ -1,12 +1,13 @@
 # Pepasur Frontend
 
-A Next.js-based frontend application for Pepasur, an on-chain Mafia game built on the Aptos blockchain. The frontend provides an immersive real-time gaming experience with wallet integration, responsive design, and seamless blockchain interactions.
+A Next.js-based frontend application for Pepasur, an on-chain Mafia game built on EVM-compatible blockchains (U2U Network and Celo). The frontend provides an immersive real-time gaming experience with wallet integration, responsive design, and seamless blockchain interactions.
 
 ---
 
 ## ✨ Features
 
-- **Wallet Integration**: Support for multiple Aptos wallets (Petra, Martian, Pontem)
+- **EVM Wallet Integration**: Support for MetaMask, WalletConnect, and other EVM-compatible wallets
+- **Multi-Network Support**: Configurable for U2U Network and Celo via environment variables
 - **Real-time UI**: Live game updates via Socket.IO for instant player actions and state changes
 - **Responsive Design**: Mobile-first design that works seamlessly across all devices
 - **Component-Based Architecture**: Built with shadcn/ui components using Radix UI primitives
@@ -15,7 +16,7 @@ A Next.js-based frontend application for Pepasur, an on-chain Mafia game built o
 - **Task Mini-games**: Interactive mini-games during task phases
 - **Role-Based UI**: Dynamic interface adapting to player roles (ASUR, DEV, MANAV, RISHI)
 - **Chat System**: Real-time in-game chat for player communication
-- **Transaction Management**: Seamless Aptos blockchain transaction handling
+- **Transaction Management**: Seamless EVM blockchain transaction handling with wagmi and viem
 
 ---
 
@@ -27,8 +28,9 @@ A Next.js-based frontend application for Pepasur, an on-chain Mafia game built o
 - **Component Library**: shadcn/ui (Radix UI primitives)
 - **Styling**: Tailwind CSS 4.1.9
 - **State Management**: React Hooks & Context API
-- **Blockchain SDK**: @aptos-labs/ts-sdk 1.39.0
-- **Wallet Adapter**: @aptos-labs/wallet-adapter-react 7.1.3
+- **Blockchain Integration**: wagmi 2.x (React hooks for Ethereum)
+- **Ethereum Library**: viem 2.x (TypeScript interface for Ethereum)
+- **Wallet Connectors**: MetaMask, WalletConnect, and other EVM wallets
 - **Real-time Communication**: socket.io-client 4.8.1
 - **Forms**: react-hook-form 7.60.0
 - **Validation**: zod 3.25.67
@@ -45,8 +47,8 @@ A Next.js-based frontend application for Pepasur, an on-chain Mafia game built o
 
 - **Node.js v18 or higher**: JavaScript runtime
 - **npm or pnpm**: Package manager
-- **Aptos Wallet**: Browser extension (Petra, Martian, or Pontem)
-- **APT Tokens**: Devnet or testnet tokens for staking
+- **EVM Wallet**: Browser extension (MetaMask) or WalletConnect-compatible wallet
+- **Native Tokens**: U2U or CELO tokens for staking and gas fees
 
 ### Step 1: Install Dependencies
 
@@ -77,12 +79,18 @@ Edit `.env.local` with your configuration:
 NEXT_PUBLIC_API_URL=http://localhost:3001
 NEXT_PUBLIC_SOCKET_URL=http://localhost:3001
 
-# Aptos Blockchain Configuration
-NEXT_PUBLIC_APTOS_NETWORK=testnet
-NEXT_PUBLIC_APTOS_NODE_URL=https://fullnode.testnet.aptoslabs.com/v1
+# EVM Blockchain Configuration
+NEXT_PUBLIC_NETWORK=u2u
+NEXT_PUBLIC_CHAIN_ID=39
+NEXT_PUBLIC_RPC_URL=https://rpc-mainnet.uniultra.xyz
 
-# Pepasur Contract Address (deployed module address on Aptos)
-NEXT_PUBLIC_MODULE_ADDRESS=0x...
+# Pepasur Contract Address (deployed contract address on EVM)
+NEXT_PUBLIC_CONTRACT_ADDRESS=0x...
+
+# Network Display
+NEXT_PUBLIC_NETWORK_NAME=U2U Network
+NEXT_PUBLIC_NATIVE_TOKEN_SYMBOL=U2U
+NEXT_PUBLIC_EXPLORER_URL=https://u2uscan.xyz
 
 # Game Configuration
 NEXT_PUBLIC_DEFAULT_STAKE_AMOUNT=100000000
@@ -99,10 +107,14 @@ NEXT_PUBLIC_ENABLE_DEBUG_LOGS=false
 
 - `NEXT_PUBLIC_API_URL`: Backend REST API endpoint
 - `NEXT_PUBLIC_SOCKET_URL`: Backend Socket.IO server endpoint
-- `NEXT_PUBLIC_APTOS_NETWORK`: Aptos network (devnet, testnet, or mainnet)
-- `NEXT_PUBLIC_APTOS_NODE_URL`: Aptos full node RPC URL
-- `NEXT_PUBLIC_MODULE_ADDRESS`: Deployed Pepasur smart contract module address
-- `NEXT_PUBLIC_DEFAULT_STAKE_AMOUNT`: Default stake amount in Octas (1 APT = 100000000 Octas)
+- `NEXT_PUBLIC_NETWORK`: Network identifier (u2u or celo)
+- `NEXT_PUBLIC_CHAIN_ID`: EVM chain ID (39 for U2U, 42220 for Celo)
+- `NEXT_PUBLIC_RPC_URL`: Network RPC endpoint
+- `NEXT_PUBLIC_CONTRACT_ADDRESS`: Deployed Pepasur.sol contract address
+- `NEXT_PUBLIC_NETWORK_NAME`: Display name for the network
+- `NEXT_PUBLIC_NATIVE_TOKEN_SYMBOL`: Native token symbol (U2U or CELO)
+- `NEXT_PUBLIC_EXPLORER_URL`: Block explorer URL for transaction links
+- `NEXT_PUBLIC_DEFAULT_STAKE_AMOUNT`: Default stake amount in Wei (1 ETH = 10^18 Wei)
 - `NEXT_PUBLIC_DEFAULT_MIN_PLAYERS`: Minimum players required to start a game
 - `NEXT_PUBLIC_DEFAULT_MAX_PLAYERS`: Maximum players allowed in a game
 - `NEXT_PUBLIC_GAME_TIMEOUT_SECONDS`: Game timeout duration in seconds
@@ -179,23 +191,59 @@ frontend/
 
 ## 🔌 Key Integrations
 
-### Aptos Wallet Integration
+### EVM Wallet Integration
 
-The frontend uses `@aptos-labs/wallet-adapter-react` to support multiple Aptos wallets including Petra, Martian, and Pontem. The wallet adapter provides:
+The frontend uses **wagmi** and **viem** to support EVM-compatible wallets including MetaMask, WalletConnect, and others. The wallet integration provides:
 
-- **Multi-wallet Support**: Users can connect with their preferred Aptos wallet
+- **Multi-wallet Support**: Users can connect with MetaMask, WalletConnect, or other EVM wallets
 - **Account Management**: Access to connected wallet address and account information
-- **Transaction Signing**: Sign and submit transactions to the Aptos blockchain
-- **Network Switching**: Support for devnet, testnet, and mainnet
+- **Transaction Signing**: Sign and submit transactions to EVM blockchains
+- **Network Switching**: Automatic network detection and switching prompts
+- **Contract Interactions**: Type-safe contract calls using wagmi hooks
 
 **Implementation:**
 ```typescript
-import { AptosWalletAdapterProvider } from '@aptos-labs/wallet-adapter-react';
+import { WagmiConfig, createConfig } from 'wagmi';
+import { MetaMaskConnector } from 'wagmi/connectors/metaMask';
+import { WalletConnectConnector } from 'wagmi/connectors/walletConnect';
+
+// Configure wagmi with target chain
+const config = createConfig({
+  autoConnect: true,
+  connectors: [
+    new MetaMaskConnector({ chains }),
+    new WalletConnectConnector({ chains, options: { projectId } }),
+  ],
+  publicClient,
+});
 
 // Wrap your app with the provider
-<AptosWalletAdapterProvider>
+<WagmiConfig config={config}>
   {children}
-</AptosWalletAdapterProvider>
+</WagmiConfig>
+```
+
+**Contract Interaction Hooks:**
+```typescript
+import { useContractRead, useContractWrite } from 'wagmi';
+import { parseEther } from 'viem';
+
+// Read contract state
+const { data: gameInfo } = useContractRead({
+  address: contractAddress,
+  abi: PepasurABI,
+  functionName: 'games',
+  args: [gameId],
+});
+
+// Write to contract (join game)
+const { write: joinGame } = useContractWrite({
+  address: contractAddress,
+  abi: PepasurABI,
+  functionName: 'joinGame',
+  args: [gameId],
+  value: parseEther(stakeAmount.toString()),
+});
 ```
 
 ### Real-time Communication
@@ -231,12 +279,13 @@ const { gameState, players, currentPhase, submitAction } = useGame();
 
 ### Blockchain Interactions
 
-The frontend interacts with Aptos blockchain through the TypeScript SDK:
+The frontend interacts with EVM blockchains through wagmi and viem:
 
-- **Game Creation**: Submit transactions to create new game lobbies with stake deposits
-- **Joining Games**: Stake APT tokens to join existing games
-- **Withdrawals**: Withdraw winnings from completed games
-- **Transaction Status**: Monitor transaction status and confirmations
+- **Game Creation**: Backend creates games on-chain, frontend receives game ID
+- **Joining Games**: Users stake native tokens (U2U/CELO) to join games via payable contract calls
+- **Withdrawals**: Users withdraw winnings from completed games directly from contract
+- **Transaction Status**: Monitor transaction status and confirmations via wagmi hooks
+- **Network Detection**: Automatic detection of connected network and prompts to switch if incorrect
 
 ---
 
@@ -294,13 +343,66 @@ The project uses:
 
 ---
 
+## 🌐 Network-Specific Configuration
+
+### U2U Network
+
+Create `.env.u2u` file:
+```env
+NEXT_PUBLIC_NETWORK=u2u
+NEXT_PUBLIC_CHAIN_ID=39
+NEXT_PUBLIC_RPC_URL=https://rpc-mainnet.uniultra.xyz
+NEXT_PUBLIC_CONTRACT_ADDRESS=<your_deployed_contract>
+NEXT_PUBLIC_NETWORK_NAME=U2U Network
+NEXT_PUBLIC_NATIVE_TOKEN_SYMBOL=U2U
+NEXT_PUBLIC_EXPLORER_URL=https://u2uscan.xyz
+NEXT_PUBLIC_API_URL=https://api.u2u.pepasur.xyz
+```
+
+### Celo Network
+
+Create `.env.celo` file:
+```env
+NEXT_PUBLIC_NETWORK=celo
+NEXT_PUBLIC_CHAIN_ID=42220
+NEXT_PUBLIC_RPC_URL=https://forno.celo.org
+NEXT_PUBLIC_CONTRACT_ADDRESS=<your_deployed_contract>
+NEXT_PUBLIC_NETWORK_NAME=Celo
+NEXT_PUBLIC_NATIVE_TOKEN_SYMBOL=CELO
+NEXT_PUBLIC_EXPLORER_URL=https://explorer.celo.org
+NEXT_PUBLIC_API_URL=https://api.celo.pepasur.xyz
+```
+
+### Switching Networks
+
+To switch between networks, copy the appropriate environment file:
+```bash
+# For U2U
+copy .env.u2u .env.local
+
+# For Celo
+copy .env.celo .env.local
+```
+
+Then rebuild the application:
+```bash
+npm run build
+```
+
 ## 🐛 Troubleshooting
 
 ### Wallet Connection Issues
 
-- Ensure you have an Aptos wallet extension installed (Petra, Martian, or Pontem)
-- Check that your wallet is connected to the correct network (devnet/testnet)
+- Ensure you have MetaMask or a WalletConnect-compatible wallet installed
+- Check that your wallet is connected to the correct network (U2U or Celo)
 - Try refreshing the page or reconnecting your wallet
+- If prompted, add the custom network to your wallet
+
+### Wrong Network
+
+- The app will prompt you to switch networks if you're on the wrong chain
+- Click "Switch Network" in the prompt to automatically switch
+- If the network isn't added to your wallet, you'll be prompted to add it
 
 ### Socket Connection Errors
 
@@ -310,26 +412,32 @@ The project uses:
 
 ### Transaction Failures
 
-- Confirm you have sufficient APT tokens for staking and gas fees
+- Confirm you have sufficient native tokens (U2U/CELO) for staking and gas fees
 - Verify the contract address in `.env.local` matches the deployed contract
-- Check Aptos Explorer for transaction details and error messages
+- Check the block explorer for transaction details and error messages
+- Ensure you're on the correct network
 
 ### Build Errors
 
 - Delete `.next` folder and `node_modules`, then reinstall dependencies
 - Ensure all environment variables are properly set
 - Check for TypeScript errors with `npm run lint`
+- Verify wagmi and viem versions are compatible
 
 ---
 
 ## 📚 Additional Resources
 
 - **Next.js Documentation**: [https://nextjs.org/docs](https://nextjs.org/docs)
-- **Aptos TypeScript SDK**: [https://aptos.dev/sdks/ts-sdk/](https://aptos.dev/sdks/ts-sdk/)
-- **Aptos Wallet Adapter**: [https://github.com/aptos-labs/aptos-wallet-adapter](https://github.com/aptos-labs/aptos-wallet-adapter)
+- **wagmi Documentation**: [https://wagmi.sh/](https://wagmi.sh/)
+- **viem Documentation**: [https://viem.sh/](https://viem.sh/)
+- **U2U Network Documentation**: [https://docs.uniultra.xyz/](https://docs.uniultra.xyz/)
+- **Celo Documentation**: [https://docs.celo.org/](https://docs.celo.org/)
 - **shadcn/ui Components**: [https://ui.shadcn.com/](https://ui.shadcn.com/)
 - **Tailwind CSS**: [https://tailwindcss.com/docs](https://tailwindcss.com/docs)
 - **Socket.IO Client**: [https://socket.io/docs/v4/client-api/](https://socket.io/docs/v4/client-api/)
+- **MetaMask Documentation**: [https://docs.metamask.io/](https://docs.metamask.io/)
+- **WalletConnect Documentation**: [https://docs.walletconnect.com/](https://docs.walletconnect.com/)
 
 ---
 

@@ -8,6 +8,7 @@ import WithdrawRewards from "@/components/wallet/withdraw-rewards"
 
 import { Player } from "@/hooks/useGame"
 import ColoredPlayerName from "@/components/game/colored-player-name"
+import { activeChain } from "@/lib/wagmi"
 
 interface GameResultsScreenProps {
   game?: any
@@ -39,9 +40,9 @@ const PlayerResultRow = ({ player, isWinner, isEliminated, reward, game }: {
     playerRole = roleMapping[game.roles[player.address]] || game.roles[player.address]
   }
 
-  // Calculate APT reward/penalty
-  const aptAmount = parseFloat(reward?.rewardInAPT || 0)
-  const aptDisplay = aptAmount > 0 ? `+${aptAmount.toFixed(4)}` : aptAmount < 0 ? `${aptAmount.toFixed(4)}` : '+0.0000'
+  // Calculate token reward/penalty (using native token symbol)
+  const tokenAmount = parseFloat(reward?.rewardInAPT || 0)
+  const tokenDisplay = tokenAmount > 0 ? `+${tokenAmount.toFixed(4)}` : tokenAmount < 0 ? `${tokenAmount.toFixed(4)}` : '+0.0000'
 
   return (
     <div className={`p-3 sm:p-4 rounded-none border-2 font-press-start ${isWinner
@@ -81,11 +82,11 @@ const PlayerResultRow = ({ player, isWinner, isEliminated, reward, game }: {
           </div>
         </div>
 
-        {/* Right: APT Amount + Status */}
+        {/* Right: Token Amount + Status */}
         <div className="text-right space-y-1">
-          <div className={`text-sm sm:text-base font-bold ${aptAmount > 0 ? 'text-yellow-400' : aptAmount < 0 ? 'text-red-400' : 'text-gray-400'
+          <div className={`text-sm sm:text-base font-bold ${tokenAmount > 0 ? 'text-yellow-400' : tokenAmount < 0 ? 'text-red-400' : 'text-gray-400'
             }`}>
-            {aptDisplay} APT
+            {tokenDisplay} {activeChain.nativeCurrency.symbol}
           </div>
           <div className={`px-2 py-1 rounded-none text-xs border ${isEliminated
             ? 'bg-red-900/50 border-red-500/50 text-red-300'

@@ -1,28 +1,35 @@
-const AptosService = require('../aptos/AptosService');
+const EVMService = require('../evm/EVMService');
 const FaucetRequest = require('../../models/FaucetRequest');
 const { formatTimeRemaining } = require('../../utils/timeFormatter');
+const { ethers } = require('ethers');
 
 class FaucetService {
   constructor() {
-    this.aptosService = new AptosService();
-    this.FAUCET_AMOUNT_APT = 0.01; // 0.01 APT per request
-    this.FAUCET_AMOUNT_OCTAS = this.FAUCET_AMOUNT_APT * 100000000;
+    this.evmService = new EVMService();
+    this.FAUCET_AMOUNT_TOKEN = 0.01; // 0.01 native token per request (ETH/CELO/U2U)
     this.COOLDOWN_HOURS = 24;
   }
 
   /**
-   * Validate Aptos address format
+   * Initialize the faucet service
+   */
+  async initialize() {
+    await this.evmService.initialize();
+  }
+
+  /**
+   * Validate EVM address format
    * @param {string} address
    * @returns {boolean}
    */
   isValidAddress(address) {
     if (!address) return false;
-    return address.startsWith('0x') && address.length === 66;
+    return ethers.isAddress(address);
   }
 
   /**
    * Claim faucet tokens for user (server signs transaction)
-   * @param {string} userAddress - User's Aptos address
+   * @param {string} userAddress - User's EVM address
    * @returns {Promise<object>} Transaction details
    */
   async claimTokensForUser(userAddress) {
@@ -31,7 +38,7 @@ class FaucetService {
 
       // Validate address
       if (!this.isValidAddress(userAddress)) {
-        throw new Error('Invalid Aptos address format');
+        throw new Error('Invalid EVM address format');
       }
 
       // Check rate limit
@@ -45,16 +52,16 @@ class FaucetService {
         throw error;
       }
 
-      // Send APT using AptosService (server signs)
-      const transactionHash = await this.aptosService.sendAPT(
+      // Send native token using EVMService (server signs)
+      const transactionHash = await this.evmService.sendNativeToken(
         userAddress,
-        this.FAUCET_AMOUNT_OCTAS
+        this.FAUCET_AMOUNT_TOKEN
       );
 
       // Record the request
       const faucetRequest = new FaucetRequest({
         address: userAddress,
-        amount: this.FAUCET_AMOUNT_APT,
+        amount: this.FAUCET_AMOUNT_TOKEN,
         transactionHash
       });
 
@@ -62,20 +69,38 @@ class FaucetService {
 
       const nextClaimTime = new Date(Date.now() + this.COOLDOWN_HOURS * 60 * 60 * 1000);
 
+      const networkConfig = this.evmService.getNetworkConfig();
+      const tokenSymbol = this._getTokenSymbol(networkConfig.networkName);
+
       console.log(`✅ Faucet claim successful for ${userAddress}`);
 
       return {
         transactionHash,
-        amount: this.FAUCET_AMOUNT_APT,
-        amountOctas: this.FAUCET_AMOUNT_OCTAS,
+        amount: this.FAUCET_AMOUNT_TOKEN,
+        amountWei: ethers.parseEther(this.FAUCET_AMOUNT_TOKEN.toString()).toString(),
         recipient: userAddress,
         nextClaimTime,
-        message: `Successfully sent ${this.FAUCET_AMOUNT_APT} APT`
+        message: `Successfully sent ${this.FAUCET_AMOUNT_TOKEN} ${tokenSymbol}`,
+        tokenSymbol
       };
     } catch (error) {
       console.error('❌ Error claiming faucet tokens:', error);
       throw error;
     }
+  }
+
+  /**
+   * Get token symbol based on network name
+   * @param {string} networkName
+   * @returns {string}
+   */
+  _getTokenSymbol(networkName) {
+    const symbols = {
+      'u2u': 'U2U',
+      'celo': 'CELO',
+      'celo-sepolia': 'CELO'
+    };
+    return symbols[networkName?.toLowerCase()] || 'ETH';
   }
 
   /**
@@ -86,9 +111,12 @@ class FaucetService {
   async getFaucetInfo(userAddress) {
     try {
       const eligibility = await FaucetRequest.canRequest(userAddress);
+      const networkConfig = this.evmService.getNetworkConfig();
+      const tokenSymbol = this._getTokenSymbol(networkConfig.networkName);
 
       return {
-        faucetAmount: this.FAUCET_AMOUNT_APT,
+        faucetAmount: this.FAUCET_AMOUNT_TOKEN,
+        tokenSymbol,
         cooldownHours: this.COOLDOWN_HOURS,
         canClaim: eligibility.canRequest,
         lastClaimTime: eligibility.lastRequestTime,
@@ -145,12 +173,16 @@ class FaucetService {
         ])
       ]);
 
+      const networkConfig = this.evmService.getNetworkConfig();
+      const tokenSymbol = this._getTokenSymbol(networkConfig.networkName);
+
       return {
         totalRequests,
         last24Hours,
         last7Days,
         totalDistributed: totalDistributed[0]?.total || 0,
-        faucetAmount: this.FAUCET_AMOUNT_APT,
+        faucetAmount: this.FAUCET_AMOUNT_TOKEN,
+        tokenSymbol,
         cooldownHours: this.COOLDOWN_HOURS
       };
     } catch (error) {
@@ -165,7 +197,9 @@ class FaucetService {
    */
   async getServerWalletInfo() {
     try {
-      if (!this.aptosService.account) {
+      const serverWallet = this.evmService.getServerWallet();
+
+      if (!serverWallet) {
         return {
           address: null,
           balance: null,
@@ -173,22 +207,18 @@ class FaucetService {
         };
       }
 
-      const address = this.aptosService.account.accountAddress.toString();
+      const address = serverWallet.address;
+      const networkConfig = this.evmService.getNetworkConfig();
+      const tokenSymbol = this._getTokenSymbol(networkConfig.networkName);
 
       // Get account balance
       let balance = null;
+      let balanceFormatted = null;
       try {
-        const resources = await this.aptosService.aptos.getAccountResources({
-          accountAddress: address
-        });
-
-        const coinResource = resources.find(
-          r => r.type === '0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>'
-        );
-
-        if (coinResource) {
-          balance = parseInt(coinResource.data.coin.value) / 100000000; // Convert octas to APT
-        }
+        const provider = this.evmService.getProvider();
+        const balanceWei = await provider.getBalance(address);
+        balanceFormatted = ethers.formatEther(balanceWei);
+        balance = parseFloat(balanceFormatted);
       } catch (balanceError) {
         console.warn('Could not fetch server balance:', balanceError.message);
       }
@@ -196,7 +226,10 @@ class FaucetService {
       return {
         address,
         balance,
-        balanceAPT: balance,
+        balanceFormatted,
+        tokenSymbol,
+        network: networkConfig.networkName,
+        chainId: networkConfig.chainId,
         status: 'Active'
       };
     } catch (error) {
@@ -214,11 +247,16 @@ class FaucetService {
    * @returns {object}
    */
   getServiceStatus() {
+    const networkConfig = this.evmService.getNetworkConfig();
+    const tokenSymbol = this._getTokenSymbol(networkConfig.networkName);
+
     return {
-      initialized: !!this.aptosService.account,
-      faucetAmount: this.FAUCET_AMOUNT_APT,
+      initialized: this.evmService.isInitialized(),
+      faucetAmount: this.FAUCET_AMOUNT_TOKEN,
+      tokenSymbol,
       cooldownHours: this.COOLDOWN_HOURS,
-      network: process.env.NETWORK || 'devnet'
+      network: networkConfig.networkName,
+      chainId: networkConfig.chainId
     };
   }
 }

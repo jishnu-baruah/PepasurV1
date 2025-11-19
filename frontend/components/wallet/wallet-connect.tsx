@@ -1,26 +1,26 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useWallet } from '@aptos-labs/wallet-adapter-react';
-import { WalletSelector } from '@aptos-labs/wallet-adapter-ant-design';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useWalletContext } from '@/contexts/WalletContext';
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import GifLoader from "@/components/common/gif-loader"
+import { activeChain } from '@/lib/wagmi';
 
 interface WalletConnectProps {
   onAddressChange: (address: string | null) => void;
   onJoinGame?: () => void;
   onCreateLobby?: () => void;
-
+  onPublicLobby?: () => void;
 }
 
 export default function WalletConnect({ onAddressChange, onJoinGame, onCreateLobby, onPublicLobby }: WalletConnectProps) {
-  const { account, connected, disconnect } = useWallet();
+  const { address, isConnected, disconnect, isCorrectNetwork, switchNetwork, chainId } = useWalletContext();
   const previousAddressRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Convert AccountAddress object to string
-    const currentAddress = connected && account ? account.address.toString() : null;
+    const currentAddress = isConnected && address ? address : null;
 
     // Only call onAddressChange if the address actually changed
     if (currentAddress !== previousAddressRef.current) {
@@ -28,7 +28,7 @@ export default function WalletConnect({ onAddressChange, onJoinGame, onCreateLob
       previousAddressRef.current = currentAddress;
       onAddressChange(currentAddress);
     }
-  }, [connected, account]);
+  }, [isConnected, address, onAddressChange]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-2 sm:p-4 md:p-6 lg:p-8 gaming-bg scanlines">
@@ -45,11 +45,36 @@ export default function WalletConnect({ onAddressChange, onJoinGame, onCreateLob
               <span className="pixel-text-3d-green pixel-text-3d-float" style={{ animationDelay: '0.6s' }}>R</span>
             </div>
 
-            {!connected ? (
+            {!isConnected ? (
               <div className="space-y-3 sm:space-y-4">
                 <div className="flex justify-center">
-                  <WalletSelector />
+                  <ConnectButton />
                 </div>
+              </div>
+            ) : !isCorrectNetwork ? (
+              <div className="space-y-4 sm:space-y-6">
+                <div className="text-base sm:text-lg md:text-xl font-press-start text-yellow-400">
+                  WRONG NETWORK
+                </div>
+                <div className="text-sm text-gray-400">
+                  Please switch to {activeChain.name}
+                </div>
+                <Button
+                  onClick={() => switchNetwork(activeChain.id)}
+                  variant="pixel"
+                  size="pixelLarge"
+                  className="w-full text-sm sm:text-base"
+                >
+                  SWITCH TO {activeChain.name.toUpperCase()}
+                </Button>
+                <Button
+                  variant="pixelOutline"
+                  size="pixelLarge"
+                  className="w-full text-sm sm:text-base"
+                  onClick={() => disconnect()}
+                >
+                  DISCONNECT WALLET
+                </Button>
               </div>
             ) : (
               <div className="space-y-4 sm:space-y-6">
@@ -57,6 +82,10 @@ export default function WalletConnect({ onAddressChange, onJoinGame, onCreateLob
                   <GifLoader size="xl" />
                 </div>
                 <div className="text-base sm:text-lg md:text-xl font-press-start pixel-text-3d-green pixel-text-3d-glow">WALLET CONNECTED</div>
+
+                <div className="text-sm text-gray-400 break-all">
+                  {address?.slice(0, 6)}...{address?.slice(-4)}
+                </div>
 
                 <div className="space-y-3 sm:space-y-4">
                   {onJoinGame && (
@@ -70,7 +99,16 @@ export default function WalletConnect({ onAddressChange, onJoinGame, onCreateLob
                     </Button>
                   )}
 
-
+                  {onPublicLobby && (
+                    <Button
+                      onClick={onPublicLobby}
+                      variant="pixel"
+                      size="pixelLarge"
+                      className="w-full text-sm sm:text-base"
+                    >
+                      PUBLIC LOBBIES
+                    </Button>
+                  )}
 
                   {onCreateLobby && (
                     <Button

@@ -1,16 +1,33 @@
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
-const AptosService = require('../aptos/AptosService');
 const StakingManager = require('../staking/StakingManager');
 const GameRepository = require('./GameRepository');
 const TaskManager = require('../core/TaskManager');
 const PhaseManager = require('./PhaseManager');
 const GameRewardService = require('./GameRewardService'); // Import GameRewardService
 
+// GameManager accepts EVMService via the blockchainService parameter in the constructor
+
 class GameManager {
-  // Dummy comment to force module reload
-  constructor(socketManager = null, aptosService = null) {
-    this.aptosService = aptosService; // Store AptosService instance
+  constructor(socketManager = null, blockchainService = null) {
+    // Initialize with EVMService
+    if (blockchainService) {
+      if (typeof blockchainService.createGame === 'function') {
+        this.blockchainService = blockchainService;
+        // Determine service type
+        this.isEVMService = blockchainService.constructor.name === 'EVMService' ||
+          blockchainService.getNetworkConfig !== undefined;
+        console.log(`🔗 GameManager initialized with ${this.isEVMService ? 'EVMService' : 'blockchain service'}`);
+      } else {
+        console.warn('⚠️ Invalid blockchain service provided to GameManager');
+        this.blockchainService = null;
+        this.isEVMService = false;
+      }
+    } else {
+      this.blockchainService = null;
+      this.isEVMService = false;
+    }
+
     this.games = new Map(); // gameId -> game state
     this.detectiveReveals = new Map(); // gameId -> reveals[]
     this.roomCodes = new Map(); // roomCode -> gameId
@@ -52,7 +69,7 @@ class GameManager {
       day: 1,
       timeLeft: 0,
       startedAt: null,
-      stakeAmount: stakeAmount || 100000000, // 1 APT
+      stakeAmount: stakeAmount || 1000000000000000000, // 1 token (in Wei)
       minPlayers: minPlayers || parseInt(process.env.DEFAULT_MIN_PLAYERS) || 4,
       maxPlayers: parseInt(process.env.DEFAULT_MAX_PLAYERS) || 10,
       pendingActions: {}, // address -> { commit, revealed }
@@ -75,18 +92,26 @@ class GameManager {
       console.log(`🎮 Using provided contract gameId: ${contractGameId}`);
     } else if (game.stakingRequired) {
       try {
-        console.log(`🎮 Creating game on-chain with stake: ${game.stakeAmount} APT`);
+        const tokenSymbol = process.env.NATIVE_TOKEN_SYMBOL || 'ETH';
+        console.log(`🎮 Creating game on-chain with stake: ${game.stakeAmount} ${tokenSymbol}`);
 
-        if (!this.aptosService) {
-          throw new Error('AptosService not initialized in GameManager.');
+        if (!this.blockchainService) {
+          throw new Error('Blockchain service not initialized in GameManager.');
         }
-        const onChainGameId = await this.aptosService.createGame(game.stakeAmount, game.minPlayers);
+
+        // Stake amount is expected in the native token's smallest unit (Wei)
+        // The EVMService will handle the conversion internally
+        const onChainGameId = await this.blockchainService.createGame(
+          game.stakeAmount,
+          game.minPlayers
+        );
 
         console.log(`✅ Game created on-chain with ID: ${onChainGameId}`);
         game.onChainGameId = onChainGameId;
 
       } catch (error) {
         console.error('❌ Error creating game on-chain:', error);
+        throw error; // Re-throw to prevent game creation without on-chain component
       }
     }
 

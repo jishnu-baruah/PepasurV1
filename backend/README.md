@@ -1,36 +1,39 @@
 # Pepasur Backend
 
-Real-time Mafia gameplay backend with Aptos blockchain integration for staking, role commit-reveal, and final settlements.
+Real-time Mafia gameplay backend with EVM blockchain integration for staking, role commit-reveal, and final settlements on U2U and Celo networks.
 
 ## ✨ Features
 
 - **Real-time Gameplay**: Socket.IO for live game updates and player interactions
-- **Aptos Blockchain Integration**: On-chain staking, settlements, and payouts
+- **EVM Blockchain Integration**: On-chain staking, settlements, and payouts via ethers.js
+- **Multi-Network Support**: Configurable for U2U Network and Celo via environment variables
 - **Game State Management**: In-memory game state with optional MongoDB persistence
 - **Commit-Reveal Mechanism**: Cryptographic security for action submission
+- **ECDSA Signature Generation**: Server-signed settlements for secure reward distribution
 - **Detective Role Features**: Role revelation and verification system
 - **Game Phase Management**: Night, Task, Resolution, and Voting phases
 - **Mini-game System**: Sequence rebuild, memory puzzles, hash reconstruction
-- **Faucet Service**: Testnet token distribution for new players
+- **Faucet Service**: Native token distribution for new players on testnet
 - **RESTful API**: Comprehensive endpoints for game management
 
 ## 🛠️ Tech Stack
 
-- **Runtime**: Node.js
+- **Runtime**: Node.js v18+
 - **Framework**: Express 4.18.2
 - **Real-time**: Socket.IO 4.7.4
-- **Blockchain**: @aptos-labs/ts-sdk 5.1.1
-- **Database**: Mongoose 8.19.2 (MongoDB)
-- **Utilities**: dotenv, uuid, cors, ethers 6.8.1
+- **Blockchain**: ethers.js 6.8.1 (EVM interaction library)
+- **Database**: Mongoose 8.19.2 (MongoDB, optional)
+- **Utilities**: dotenv, uuid, cors
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js v18 or higher
-- MongoDB (optional, for persistent storage)
-- Aptos account with private key
-- APT tokens on devnet/testnet
+- **Node.js v18 or higher**: JavaScript runtime
+- **MongoDB** (optional): For persistent game state storage
+- **EVM Wallet Private Key**: Server wallet for signing settlements and transactions
+- **Native Tokens**: U2U or CELO tokens for gas fees and faucet distribution
+- **Deployed Contract**: Pepasur.sol contract deployed on target network
 
 ### Step 1: Install Dependencies
 
@@ -49,16 +52,22 @@ Edit `.env` with your configuration:
 
 ```env
 # Network Configuration
-NETWORK=devnet
-APTOS_NODE_URL=https://fullnode.devnet.aptoslabs.com/v1
+NETWORK_NAME=u2u                              # or 'celo'
+CHAIN_ID=39                                   # 39 for U2U, 42220 for Celo
+RPC_URL=https://rpc-mainnet.uniultra.xyz      # Network RPC endpoint
+WS_URL=wss://ws-mainnet.uniultra.xyz          # WebSocket endpoint (optional)
 
 # Server Configuration
 PORT=3001
-SERVER_PRIVATE_KEY=0x... # Server wallet private key
-ADMIN_PRIVATE_KEY=0x...  # Admin wallet private key
+SERVER_PRIVATE_KEY=0x...                      # Server wallet private key (ECDSA)
+ADMIN_PRIVATE_KEY=0x...                       # Admin wallet private key
 
 # Contract Configuration
-PEPASUR_APTOS_CONTRACT_ADDRESS=0x... # Deployed contract address
+CONTRACT_ADDRESS=0x...                        # Deployed Pepasur.sol contract address
+CONTRACT_ABI_PATH=./contracts/PepasurABI.json # Path to contract ABI
+
+# CORS Configuration
+ALLOWED_ORIGINS=https://u2u.pepasur.xyz,https://celo.pepasur.xyz
 
 # Game Settings
 DEFAULT_NIGHT_PHASE_DURATION=30
@@ -66,10 +75,37 @@ DEFAULT_RESOLUTION_PHASE_DURATION=10
 DEFAULT_TASK_PHASE_DURATION=30
 DEFAULT_VOTING_PHASE_DURATION=10
 DEFAULT_MAX_TASK_COUNT=4
-DEFAULT_STAKE_AMOUNT=100000000  # In Octas (0.1 APT)
+DEFAULT_STAKE_AMOUNT=100000000000000000       # In Wei (0.1 ETH/U2U/CELO)
 DEFAULT_MIN_PLAYERS=4
 DEFAULT_MAX_PLAYERS=10
 GAME_TIMEOUT_SECONDS=300
+
+# MongoDB Configuration (optional)
+MONGODB_URI=mongodb://localhost:27017/pepasur
+```
+
+**Network-Specific Configuration:**
+
+For **U2U Network**:
+```env
+NETWORK_NAME=u2u
+CHAIN_ID=39
+RPC_URL=https://rpc-mainnet.uniultra.xyz
+WS_URL=wss://ws-mainnet.uniultra.xyz
+```
+
+For **Celo Network**:
+```env
+NETWORK_NAME=celo
+CHAIN_ID=42220
+RPC_URL=https://forno.celo.org
+```
+
+For **Celo Sepolia Testnet**:
+```env
+NETWORK_NAME=celo-sepolia
+CHAIN_ID=44787
+RPC_URL=https://alfajores-forno.celo-testnet.org
 ```
 
 ### Step 3: Start the Server
@@ -95,12 +131,12 @@ backend/
 │   ├── game.js         # Game management endpoints
 │   └── faucet.js       # Faucet endpoints
 ├── services/            # Business logic layer
-│   ├── aptos/          # Aptos blockchain services
-│   │   ├── AptosService.js           # Main Aptos service
-│   │   ├── AptosClientManager.js     # Client connection management
-│   │   ├── AptosGameQueries.js       # On-chain data queries
-│   │   ├── AptosGameTransactions.js  # Transaction builders
-│   │   └── AptosSerializationUtils.js # Data serialization
+│   ├── evm/            # EVM blockchain services
+│   │   ├── EVMService.js             # Main EVM service
+│   │   ├── EVMClientManager.js       # Client connection management
+│   │   ├── EVMGameQueries.js         # On-chain data queries
+│   │   ├── EVMGameTransactions.js    # Transaction builders
+│   │   └── EVMSignatureUtils.js      # ECDSA signature utilities
 │   ├── core/           # Core services
 │   │   ├── FaucetService.js   # Faucet token distribution
 │   │   ├── SocketManager.js   # Socket.IO event handling
@@ -116,7 +152,7 @@ backend/
 │       └── StakingService.js  # Staking operations
 ├── utils/               # Utility functions
 │   ├── commitReveal.js           # Commit-reveal cryptography
-│   ├── aptosTransactionUtils.js  # Transaction helpers
+│   ├── evmTransactionUtils.js    # EVM transaction helpers
 │   ├── dbUtils.js                # Database utilities
 │   └── timeFormatter.js          # Time formatting
 ├── scripts/             # Utility scripts
@@ -233,28 +269,85 @@ The backend implements a cryptographic commit-reveal system for secure action su
 
 This ensures players cannot change actions after seeing others' moves, maintaining game integrity.
 
-## ⛓️ Aptos Integration
+## ⛓️ EVM Blockchain Integration
 
-- **Game Creation**: On-chain game initialization with stake deposits
-  - Creates game resource on blockchain
-  - Locks creator's stake in contract
+The backend uses **EVMService** to interact with EVM-compatible blockchains (U2U and Celo) via ethers.js.
 
-- **Player Joining**: On-chain stake deposits when joining games
-  - Validates player eligibility
-  - Locks player stake in game pool
+### EVMService Class
 
-- **Role Commits**: On-chain storage of role commitment hashes
-  - Stores encrypted role assignments
-  - Prevents role manipulation
+Located at `services/evm/EVMService.js`, this service handles all blockchain interactions:
 
-- **Settlements**: On-chain reward distribution to winners
-  - Calculates winner payouts
-  - Distributes pool to winning team
-  - Applies house cut
+**Initialization:**
+```javascript
+const evmService = new EVMService();
+await evmService.initialize();
+```
 
-- **Withdrawals**: On-chain fund withdrawal mechanism
-  - Players claim winnings
-  - Secure withdrawal pattern
+**Key Methods:**
+
+- **`createGame(stakeAmount, minPlayers)`**: Create game on-chain
+  - Submits transaction to contract's `createGame` function
+  - Returns game ID from transaction receipt
+  
+- **`getGameInfo(gameId)`**: Query game state from contract
+  - Fetches game details including players, status, and pool
+  
+- **`settleGame(gameId, winners, payouts)`**: Settle game with server signature
+  - Constructs settlement message
+  - Signs with server's ECDSA private key
+  - Submits settlement transaction with signature
+  
+- **`sendNativeToken(recipientAddress, amount)`**: Send tokens (faucet)
+  - Transfers native tokens (U2U/CELO) to recipient
+  - Used for testnet faucet functionality
+
+**Architecture:**
+
+```
+EVMService (Main service)
+├── EVMClientManager (Connection management)
+├── EVMGameTransactions (Transaction builders)
+├── EVMGameQueries (State queries)
+└── EVMSignatureUtils (ECDSA signing)
+```
+
+### Signature Verification
+
+All game settlements require ECDSA signatures:
+
+1. **Message Construction**: `keccak256(gameId || winners || payouts)`
+2. **Signing**: Server signs message with private key
+3. **Verification**: Contract verifies signature using `ecrecover`
+4. **Execution**: Settlement proceeds if signature is valid
+
+This ensures only the authorized server can settle games and distribute rewards.
+
+### Transaction Flow
+
+**Game Creation:**
+```
+Backend → EVMService.createGame() → Contract.createGame()
+→ Transaction Receipt → Extract Game ID → Return to Client
+```
+
+**Player Joining:**
+```
+Frontend → Contract.joinGame() (payable) → Stake Deposited
+→ Event Emitted → Backend Receives Update via WebSocket
+```
+
+**Settlement:**
+```
+Backend → Construct Message → Sign with Server Key
+→ EVMService.settleGame() → Contract.settleGame(signature)
+→ Verify Signature → Distribute Rewards → Queue Withdrawals
+```
+
+**Withdrawal:**
+```
+Frontend → Contract.withdraw() → Transfer Pending Balance
+→ Update State → Emit Withdrawal Event
+```
 
 ## 🔒 Security Considerations
 
@@ -275,23 +368,28 @@ npm test
 
 ### Environment Variables Reference
 
-| Variable | Description | Default |
+| Variable | Description | Example |
 |----------|-------------|---------|
-| `NETWORK` | Aptos network (devnet/testnet/mainnet) | devnet |
-| `APTOS_NODE_URL` | Aptos RPC endpoint | - |
+| `NETWORK_NAME` | Network identifier (u2u/celo) | u2u |
+| `CHAIN_ID` | EVM chain ID | 39 (U2U), 42220 (Celo) |
+| `RPC_URL` | Network RPC endpoint | https://rpc-mainnet.uniultra.xyz |
+| `WS_URL` | WebSocket endpoint (optional) | wss://ws-mainnet.uniultra.xyz |
 | `PORT` | Server port | 3001 |
-| `SERVER_PRIVATE_KEY` | Server wallet private key | - |
-| `ADMIN_PRIVATE_KEY` | Admin wallet private key | - |
-| `PEPASUR_APTOS_CONTRACT_ADDRESS` | Deployed contract address | - |
+| `SERVER_PRIVATE_KEY` | Server wallet private key (ECDSA) | 0x... |
+| `ADMIN_PRIVATE_KEY` | Admin wallet private key | 0x... |
+| `CONTRACT_ADDRESS` | Deployed Pepasur.sol contract address | 0x... |
+| `CONTRACT_ABI_PATH` | Path to contract ABI file | ./contracts/PepasurABI.json |
+| `ALLOWED_ORIGINS` | CORS allowed origins | https://u2u.pepasur.xyz |
 | `DEFAULT_NIGHT_PHASE_DURATION` | Night phase duration (seconds) | 30 |
 | `DEFAULT_RESOLUTION_PHASE_DURATION` | Resolution phase duration (seconds) | 10 |
 | `DEFAULT_TASK_PHASE_DURATION` | Task phase duration (seconds) | 30 |
 | `DEFAULT_VOTING_PHASE_DURATION` | Voting phase duration (seconds) | 10 |
 | `DEFAULT_MAX_TASK_COUNT` | Maximum tasks per game | 4 |
-| `DEFAULT_STAKE_AMOUNT` | Default stake in Octas | 100000000 |
+| `DEFAULT_STAKE_AMOUNT` | Default stake in Wei | 100000000000000000 (0.1 ETH) |
 | `DEFAULT_MIN_PLAYERS` | Minimum players to start | 4 |
 | `DEFAULT_MAX_PLAYERS` | Maximum players per game | 10 |
 | `GAME_TIMEOUT_SECONDS` | Game timeout duration | 300 |
+| `MONGODB_URI` | MongoDB connection string (optional) | mongodb://localhost:27017/pepasur |
 
 ### Utility Scripts
 
@@ -309,6 +407,95 @@ Check faucet setup:
 ```bash
 node scripts/check-faucet-setup.js
 ```
+
+## 🌐 Network-Specific Setup Guides
+
+### U2U Network Setup
+
+1. **Get U2U Tokens**: Acquire U2U tokens for gas fees
+2. **Configure Environment**:
+   ```env
+   NETWORK_NAME=u2u
+   CHAIN_ID=39
+   RPC_URL=https://rpc-mainnet.uniultra.xyz
+   WS_URL=wss://ws-mainnet.uniultra.xyz
+   CONTRACT_ADDRESS=<your_deployed_contract>
+   ```
+3. **Deploy Contract**: Use Hardhat to deploy Pepasur.sol to U2U
+4. **Initialize Contract**: Run `node scripts/initialize-contract.js`
+5. **Start Backend**: `npm start`
+
+### Celo Network Setup
+
+1. **Get CELO Tokens**: Acquire CELO tokens for gas fees
+2. **Configure Environment**:
+   ```env
+   NETWORK_NAME=celo
+   CHAIN_ID=42220
+   RPC_URL=https://forno.celo.org
+   CONTRACT_ADDRESS=<your_deployed_contract>
+   ```
+3. **Deploy Contract**: Use Hardhat to deploy Pepasur.sol to Celo
+4. **Initialize Contract**: Run `node scripts/initialize-contract.js`
+5. **Start Backend**: `npm start`
+
+### Testnet Setup (Celo Sepolia)
+
+For development and testing:
+
+```env
+NETWORK_NAME=celo-sepolia
+CHAIN_ID=44787
+RPC_URL=https://alfajores-forno.celo-testnet.org
+CONTRACT_ADDRESS=<your_testnet_contract>
+```
+
+Get testnet tokens from [Celo Faucet](https://faucet.celo.org/)
+
+## 🔧 Troubleshooting
+
+### Connection Issues
+
+**Problem**: Cannot connect to RPC endpoint
+- **Solution**: Verify RPC_URL is correct and accessible
+- **Solution**: Check if network is experiencing downtime
+- **Solution**: Try alternative RPC endpoints if available
+
+**Problem**: WebSocket connection fails
+- **Solution**: WS_URL is optional; backend will work without it
+- **Solution**: Verify WebSocket endpoint supports your network
+
+### Transaction Failures
+
+**Problem**: Transactions fail with "insufficient funds"
+- **Solution**: Ensure server wallet has enough native tokens for gas
+- **Solution**: Check gas price settings in EVMService
+
+**Problem**: Settlement signature verification fails
+- **Solution**: Verify SERVER_PRIVATE_KEY matches the serverSigner address in contract
+- **Solution**: Check signature construction in EVMSignatureUtils.js
+
+### Contract Interaction Issues
+
+**Problem**: Contract calls return errors
+- **Solution**: Verify CONTRACT_ADDRESS is correct
+- **Solution**: Ensure contract ABI matches deployed contract
+- **Solution**: Check if contract is initialized with correct parameters
+
+### Environment Configuration
+
+**Problem**: Backend fails to start
+- **Solution**: Verify all required environment variables are set
+- **Solution**: Check .env file syntax (no spaces around =)
+- **Solution**: Ensure private keys are in correct format (0x prefix)
+
+## 📚 Additional Resources
+
+- [ethers.js Documentation](https://docs.ethers.org/)
+- [U2U Network Documentation](https://docs.uniultra.xyz/)
+- [Celo Documentation](https://docs.celo.org/)
+- [Hardhat Documentation](https://hardhat.org/docs)
+- [Solidity Documentation](https://docs.soliditylang.org/)
 
 ## 📜 License
 

@@ -1,7 +1,7 @@
 const express = require('express');
 const GameStateFormatter = require('../services/game/GameStateFormatter');
 
-module.exports = (gameManagerInstance, aptosService) => {
+module.exports = (gameManagerInstance, evmService) => {
   const router = express.Router();
   const gameManager = gameManagerInstance; // Use the passed instance
 
@@ -24,10 +24,10 @@ module.exports = (gameManagerInstance, aptosService) => {
    *             properties:
    *               creatorAddress:
    *                 type: string
-   *                 description: The Aptos address of the game creator.
+   *                 description: The EVM address of the game creator.
    *               stakeAmount:
    *                 type: number
-   *                 description: The amount of APT to stake for the game (in Octas). If provided, the game is created on-chain.
+   *                 description: The amount of native token to stake for the game (in token units, e.g., 0.1 for 0.1 ETH/CELO/U2U). If provided, the game is created on-chain.
    *               minPlayers:
    *                 type: number
    *                 description: The minimum number of players required to start the game.
@@ -55,8 +55,8 @@ module.exports = (gameManagerInstance, aptosService) => {
    *                   type: string
    *                   example: "ABCDEF"
    *                 contractGameId:
-   *                   type: string
-   *                   example: "0x1::game::Game<0x1::aptos_coin::AptosCoin>"
+   *                   type: number
+   *                   example: 1
    *                 createTxHash:
    *                   type: string
    *                   example: "0xabcdef1234567890..."
@@ -82,7 +82,7 @@ module.exports = (gameManagerInstance, aptosService) => {
       // For staking games, create the contract game first
       if (stakeAmount) {
         console.log(`🎮 Creating game and contract for creator: ${creatorAddress}`);
-        console.log(`💰 Stake amount: ${stakeAmount} APT`);
+        console.log(`💰 Stake amount: ${stakeAmount} tokens`);
         console.log(`🌐 Public: ${isPublic ? 'YES' : 'NO'}`);
         if (settings) {
           console.log(`⚙️ Custom settings:`, settings);
@@ -90,14 +90,10 @@ module.exports = (gameManagerInstance, aptosService) => {
 
         // Step 1: Create the game on-chain (use settings.minPlayers if provided)
         const effectiveMinPlayers = settings?.minPlayers || minPlayers || 4;
-        const createTxHash = await aptosService.createGame(stakeAmount, effectiveMinPlayers);
-        console.log(`✅ Game created, transaction: ${createTxHash}`);
+        const contractGameId = await evmService.createGame(stakeAmount, effectiveMinPlayers);
+        console.log(`✅ Game created on-chain with ID: ${contractGameId}`);
 
-        // Step 2: Extract gameId from the create transaction
-        const contractGameId = await aptosService.extractGameIdFromTransaction(createTxHash);
-        console.log(`🎮 Extracted contract gameId: ${contractGameId}`);
-
-        // Step 3: Create room in game manager with contract gameId and public flag
+        // Step 2: Create room in game manager with contract gameId and public flag
         const { gameId, roomCode } = await gameManager.createGame(
           creatorAddress,
           stakeAmount,
@@ -112,7 +108,6 @@ module.exports = (gameManagerInstance, aptosService) => {
           gameId,
           roomCode,
           contractGameId,
-          createTxHash,
           isPublic: isPublic || false,
           message: 'Game created successfully'
         });
@@ -163,10 +158,10 @@ module.exports = (gameManagerInstance, aptosService) => {
    *             properties:
    *               creatorAddress:
    *                 type: string
-   *                 description: The Aptos address of the game creator.
+   *                 description: The EVM address of the game creator.
    *               stakeAmount:
    *                 type: number
-   *                 description: The amount of APT to stake for the game (in Octas).
+   *                 description: The amount of native token to stake for the game (in token units, e.g., 0.1 for 0.1 ETH/CELO/U2U).
    *               minPlayers:
    *                 type: number
    *                 description: The minimum number of players required to start the game.
@@ -191,8 +186,8 @@ module.exports = (gameManagerInstance, aptosService) => {
    *                   type: string
    *                   example: "game_12345"
    *                 contractGameId:
-   *                   type: string
-   *                   example: "0x1::game::Game<0x1::aptos_coin::AptosCoin>"
+   *                   type: number
+   *                   example: 1
    *                 roomCode:
    *                   type: string
    *                   example: "ABCDEF"
@@ -215,13 +210,13 @@ module.exports = (gameManagerInstance, aptosService) => {
         return res.status(400).json({ error: 'Creator address and stake amount are required' });
       }
 
-      const MIN_STAKE_AMOUNT_OCTAS = 100000; // 0.001 APT
-      if (typeof stakeAmount !== 'number' || stakeAmount < MIN_STAKE_AMOUNT_OCTAS) {
-        return res.status(400).json({ error: `Stake amount must be at least ${MIN_STAKE_AMOUNT_OCTAS / 100000000} APT` });
+      const MIN_STAKE_AMOUNT = 0.001; // 0.001 tokens (ETH/CELO/U2U)
+      if (typeof stakeAmount !== 'number' || stakeAmount < MIN_STAKE_AMOUNT) {
+        return res.status(400).json({ error: `Stake amount must be at least ${MIN_STAKE_AMOUNT} tokens` });
       }
 
       console.log(`🎮 Creating game and joining for creator: ${creatorAddress}`);
-      console.log(`💰 Stake amount: ${stakeAmount} Octas (${stakeAmount / 100000000} APT)`);
+      console.log(`💰 Stake amount: ${stakeAmount} tokens`);
       console.log(`🌐 Public: ${isPublic ? 'YES' : 'NO'}`);
       if (settings) {
         console.log(`⚙️ Custom settings:`, settings);
@@ -229,7 +224,7 @@ module.exports = (gameManagerInstance, aptosService) => {
 
       // Step 1: Create the game on-chain with custom stake amount (use settings.minPlayers if provided)
       const effectiveMinPlayers = settings?.minPlayers || minPlayers || 4;
-      const contractGameId = await aptosService.createGame(stakeAmount, effectiveMinPlayers);
+      const contractGameId = await evmService.createGame(stakeAmount, effectiveMinPlayers);
       console.log(`✅ Game created on-chain, contract gameId: ${contractGameId}`);
 
       // Step 2: Create room in game manager (user will stake from frontend)
@@ -275,7 +270,7 @@ module.exports = (gameManagerInstance, aptosService) => {
    *         name: playerAddress
    *         schema:
    *           type: string
-   *         description: Optional. The Aptos address of the player requesting the game state. If provided, player-specific roles will be included.
+   *         description: Optional. The EVM address of the player requesting the game state. If provided, player-specific roles will be included.
    *     responses:
    *       200:
    *         description: Game state retrieved successfully.
@@ -349,7 +344,7 @@ module.exports = (gameManagerInstance, aptosService) => {
    *                 description: The 6-character alphanumeric room code of the game.
    *               playerAddress:
    *                 type: string
-   *                 description: The Aptos address of the player joining the game.
+   *                 description: The EVM address of the player joining the game.
    *     responses:
    *       200:
    *         description: Player joined successfully.
@@ -420,7 +415,7 @@ module.exports = (gameManagerInstance, aptosService) => {
    *                 description: The ID of the game the player is leaving.
    *               playerAddress:
    *                 type: string
-   *                 description: The Aptos address of the player leaving the game.
+   *                 description: The EVM address of the player leaving the game.
    *     responses:
    *       200:
    *         description: Player left successfully, or game cancelled.
@@ -498,7 +493,7 @@ module.exports = (gameManagerInstance, aptosService) => {
    *                 description: The ID of the game.
    *               playerAddress:
    *                 type: string
-   *                 description: The Aptos address of the player who staked.
+   *                 description: The EVM address of the player who staked.
    *               transactionHash:
    *                 type: string
    *                 description: The hash of the on-chain staking transaction.
@@ -637,7 +632,7 @@ module.exports = (gameManagerInstance, aptosService) => {
    *             properties:
    *               playerAddress:
    *                 type: string
-   *                 description: The Aptos address of the player to eliminate.
+   *                 description: The EVM address of the player to eliminate.
    *     responses:
    *       200:
    *         description: Player eliminated successfully.
@@ -720,7 +715,7 @@ module.exports = (gameManagerInstance, aptosService) => {
    *             properties:
    *               playerAddress:
    *                 type: string
-   *                 description: The Aptos address of the player signaling readiness.
+   *                 description: The EVM address of the player signaling readiness.
    *     responses:
    *       200:
    *         description: Player ready signal received.
@@ -792,7 +787,7 @@ module.exports = (gameManagerInstance, aptosService) => {
    *             properties:
    *               playerAddress:
    *                 type: string
-   *                 description: The Aptos address of the player submitting the action.
+   *                 description: The EVM address of the player submitting the action.
    *               action:
    *                 type: object
    *                 description: The specific action data (e.g., target, ability).
@@ -862,7 +857,7 @@ module.exports = (gameManagerInstance, aptosService) => {
    *             properties:
    *               playerAddress:
    *                 type: string
-   *                 description: The Aptos address of the player submitting the answer.
+   *                 description: The EVM address of the player submitting the answer.
    *               answer:
    *                 type: string
    *                 description: The player's answer to the task.
@@ -937,10 +932,10 @@ module.exports = (gameManagerInstance, aptosService) => {
    *             properties:
    *               playerAddress:
    *                 type: string
-   *                 description: The Aptos address of the player submitting the vote.
+   *                 description: The EVM address of the player submitting the vote.
    *               vote:
    *                 type: string
-   *                 description: The Aptos address of the player being voted for.
+   *                 description: The EVM address of the player being voted for.
    *     responses:
    *       200:
    *         description: Vote submitted successfully.
@@ -1228,7 +1223,7 @@ module.exports = (gameManagerInstance, aptosService) => {
    *             properties:
    *               creatorAddress:
    *                 type: string
-   *                 description: The Aptos address of the game creator.
+   *                 description: The EVM address of the game creator.
    *               settings:
    *                 type: object
    *                 description: An object containing the settings to update (e.g., nightPhaseDuration, maxTaskCount).

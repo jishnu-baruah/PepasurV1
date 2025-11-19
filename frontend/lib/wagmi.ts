@@ -1,5 +1,34 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { defineChain, http } from 'viem';
+import { celo, celoAlfajores } from 'viem/chains';
+
+// Define U2U Mainnet chain
+export const u2uMainnet = defineChain({
+  id: 39,
+  name: 'U2U Network',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'U2U',
+    symbol: 'U2U',
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://rpc-mainnet.uniultra.xyz'],
+      webSocket: ['wss://ws-mainnet.uniultra.xyz'],
+    },
+    public: {
+      http: ['https://rpc-mainnet.uniultra.xyz'],
+      webSocket: ['wss://ws-mainnet.uniultra.xyz'],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'U2UScan',
+      url: 'https://u2uscan.xyz',
+    },
+  },
+  testnet: false,
+});
 
 // Define U2U Nebulas Testnet chain
 export const u2uTestnet = defineChain({
@@ -25,12 +54,46 @@ export const u2uTestnet = defineChain({
     },
   },
   testnet: true,
-  // Add gas configuration for U2U testnet
-  fees: {
-    baseFeeMultiplier: 1,
-    priorityFeeMultiplier: 1,
-  },
 });
+
+/**
+ * Get network configuration from environment
+ * This function is used internally by wagmi configuration
+ * For application-wide network config, use getNetworkConfig() from networkConfig.ts
+ */
+const getWagmiNetworkConfig = () => {
+  const network = process.env.NEXT_PUBLIC_NETWORK || 'u2u-testnet';
+
+  switch (network) {
+    case 'u2u':
+      return {
+        chain: u2uMainnet,
+        rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || 'https://rpc-mainnet.uniultra.xyz',
+      };
+    case 'u2u-testnet':
+      return {
+        chain: u2uTestnet,
+        rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || 'https://rpc-nebulas-testnet.u2u.xyz',
+      };
+    case 'celo':
+      return {
+        chain: celo,
+        rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || 'https://forno.celo.org',
+      };
+    case 'celo-alfajores':
+      return {
+        chain: celoAlfajores,
+        rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || 'https://alfajores-forno.celo-testnet.org',
+      };
+    default:
+      return {
+        chain: u2uTestnet,
+        rpcUrl: 'https://rpc-nebulas-testnet.u2u.xyz',
+      };
+  }
+};
+
+const networkConfig = getWagmiNetworkConfig();
 
 // Get project ID from environment or use fallback
 const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '609f45d188c096567677077f5b0b4175';
@@ -39,10 +102,12 @@ const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '609f45d18
 export const config = getDefaultConfig({
   appName: 'Pepasur Game',
   projectId: projectId,
-  chains: [u2uTestnet],
+  chains: [networkConfig.chain],
   ssr: true, // Enable SSR support
-  // Fix transports configuration - use functions instead of objects
   transports: {
-    [u2uTestnet.id]: http('https://rpc-nebulas-testnet.u2u.xyz'),
+    [networkConfig.chain.id]: http(networkConfig.rpcUrl),
   },
 });
+
+// Export the active chain for use in components
+export const activeChain = networkConfig.chain;

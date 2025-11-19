@@ -1,11 +1,24 @@
-const AptosService = require('../aptos/AptosService'); // Assuming AptosService is needed for getGameInfo
 const StakingManager = require('../staking/StakingManager'); // Assuming StakingManager is needed for stakingService
 
 class GameRewardService {
   constructor(gameManager) {
     this.gameManager = gameManager; // Reference to GameManager for accessing game state
-    this.aptosService = new AptosService(); // Assuming AptosService is needed
     this.stakingManager = new StakingManager(gameManager); // Assuming StakingManager is needed
+  }
+
+  /**
+   * Get the blockchain service from GameManager
+   * Returns EVMService instance
+   */
+  getBlockchainService() {
+    return this.gameManager.blockchainService;
+  }
+
+  /**
+   * Check if using EVM service
+   */
+  isUsingEVM() {
+    return this.gameManager.isEVMService === true;
   }
 
   async handleRewardDistribution(gameId, game) {
@@ -26,35 +39,41 @@ class GameRewardService {
         return game;
       }
 
-      // Check on-chain game status before attempting settlement (TEMPORARILY DISABLED - view function not in contract)
-      // TODO: Add get_game_info view function to smart contract
-      try {
-        // const gameInfo = await this.aptosService.getGameInfo(contractGameId);
-        // console.log(`📊 On-chain game status:`, gameInfo);
+      // Check on-chain game status before attempting settlement
+      const blockchainService = this.getBlockchainService();
 
-        // // Status codes: 0 = LOBBY, 1 = IN_PROGRESS, 2 = SETTLED, 3 = CANCELLED
-        // if (gameInfo.status === 0) {
-        //   console.error(`❌ Cannot settle game ${contractGameId} - still in LOBBY status on-chain`);
-        //   console.error(`   This means not all players have staked on-chain yet.`);
-        //   console.error(`   Players in backend: ${game.players.length}`);
-        //   console.error(`   Players on-chain: ${gameInfo.players?.length || 'unknown'}`);
-        //   return game;
-        // }
-        console.log(`⚠️ Skipping on-chain status check (view function not implemented yet)`)
+      if (blockchainService && typeof blockchainService.getGameInfo === 'function') {
+        try {
+          const gameInfo = await blockchainService.getGameInfo(contractGameId);
+          console.log(`📊 On-chain game status:`, gameInfo);
 
-        // if (gameInfo.status === 2) {
-        //   console.log(`✅ Game ${contractGameId} already settled on-chain, skipping settlement`);
-        //   return game;
-        // }
+          // GameStatus enum: 0 = Lobby, 1 = InProgress, 2 = Settled, 3 = Cancelled
+          const status = gameInfo.status;
 
-        // if (gameInfo.status === 3) {
-        //   console.log(`⚠️ Game ${contractGameId} was cancelled on-chain, skipping settlement`);
-        //   return game;
-        // }
-      } catch (statusError) {
-        console.error(`❌ Error checking on-chain game status:`, statusError.message);
-        console.error(`   Proceeding with settlement anyway`);
-        // Don't return early - proceed with settlement
+          if (status === 0) {
+            console.error(`❌ Cannot settle game ${contractGameId} - still in LOBBY status on-chain`);
+            console.error(`   This means not all players have staked on-chain yet.`);
+            console.error(`   Players in backend: ${game.players.length}`);
+            console.error(`   Players on-chain: ${gameInfo.players?.length || gameInfo.playerCount || 'unknown'}`);
+            return game;
+          }
+
+          if (status === 2) {
+            console.log(`✅ Game ${contractGameId} already settled on-chain, skipping settlement`);
+            return game;
+          }
+
+          if (status === 3) {
+            console.log(`⚠️ Game ${contractGameId} was cancelled on-chain, skipping settlement`);
+            return game;
+          }
+        } catch (statusError) {
+          console.error(`❌ Error checking on-chain game status:`, statusError.message);
+          console.error(`   Proceeding with settlement anyway`);
+          // Don't return early - proceed with settlement
+        }
+      } else {
+        console.log(`⚠️ Blockchain service not available or getGameInfo not implemented, skipping status check`);
       }
 
       console.log(`💰 Using contract gameId: ${contractGameId}`);
@@ -98,7 +117,13 @@ class GameRewardService {
       const rewards = this.stakingManager.stakingService.calculateRewards(contractGameId, winners, losers, game.roles, game.eliminated || []);
       console.log(`💰 Rewards calculated:`, rewards);
 
-      const distributionResult = await this.stakingManager.stakingService.distributeRewards(contractGameId, rewards);
+      // Get blockchain service from GameManager and pass it to distributeRewards
+      const blockchainService = this.getBlockchainService();
+      const distributionResult = await this.stakingManager.stakingService.distributeRewards(
+        contractGameId,
+        rewards,
+        blockchainService
+      );
 
       console.log(`💰 Rewards distributed for game ${gameId}:`, distributionResult);
 

@@ -1,8 +1,8 @@
 # Pepasur 🐸
 
-**An on-chain Mafia game powered by Aptos Blockchain**
+**An on-chain Mafia game powered by EVM-compatible blockchains**
 
-Pepasur is a multiplayer Mafia-style social deduction game built entirely on the Aptos blockchain. Players take on mythological roles—**ASUR (Mafia)**, **DEV (Doctor)**, **MANAV (Villager)**, and **RISHI (Detective)**—and compete through staking, commit-reveal mechanics, and strategic gameplay. Each game requires players to stake APT tokens, creating real economic incentives for fair play, with winners receiving rewards distributed automatically through smart contracts.
+Pepasur is a multiplayer Mafia-style social deduction game built on EVM-compatible blockchains (U2U Network and Celo). Players take on mythological roles—**ASUR (Mafia)**, **DEV (Doctor)**, **MANAV (Villager)**, and **RISHI (Detective)**—and compete through staking, commit-reveal mechanics, and strategic gameplay. Each game requires players to stake native tokens (U2U or CELO), creating real economic incentives for fair play, with winners receiving rewards distributed automatically through smart contracts.
 
 ---
 
@@ -11,8 +11,9 @@ Pepasur is a multiplayer Mafia-style social deduction game built entirely on the
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                         Frontend                            │
-│  Next.js + React + TypeScript + Aptos Wallet Adapter        │
-│              Real-time UI with Socket.IO                    │
+│  Next.js + React + TypeScript + wagmi + viem                │
+│         Real-time UI with Socket.IO                         │
+│         MetaMask / WalletConnect Integration                │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      │ WebSocket + REST API
@@ -20,22 +21,27 @@ Pepasur is a multiplayer Mafia-style social deduction game built entirely on the
 ┌────────────────────▼────────────────────────────────────────┐
 │                         Backend                             │
 │    Node.js + Express + Socket.IO + Game Logic Engine        │
-│         Commit-Reveal System + Aptos Integration            │
+│         Commit-Reveal System + ethers.js Integration        │
 └────────────────────┬────────────────────────────────────────┘
                      │
-                     │ Aptos TypeScript SDK
+                     │ ethers.js JSON-RPC
                      │
 ┌────────────────────▼────────────────────────────────────────┐
-│                    Aptos Blockchain                         │
-│      Move Smart Contracts + On-chain Game State             │
+│                    EVM Blockchain                           │
+│      Solidity Smart Contracts + On-chain Game State         │
 │    Staking + Settlement + Reward Distribution System        │
+│                                                             │
+│    ┌──────────────┐              ┌──────────────┐           │
+│    │  U2U Network │              │ Celo Network │           │
+│    │  Chain: 39   │              │ Chain: 42220 │           │
+│    └──────────────┘              └──────────────┘           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 The architecture follows a three-tier design:
-- **Frontend**: Handles user interface, wallet connections, and real-time game updates
-- **Backend**: Manages game logic, player actions, and blockchain interactions
-- **Blockchain**: Stores game state, handles staking, and distributes rewards
+- **Frontend**: Handles user interface, EVM wallet connections (MetaMask, WalletConnect), and real-time game updates
+- **Backend**: Manages game logic, player actions, and blockchain interactions via ethers.js
+- **Blockchain**: EVM-compatible chains (U2U and Celo) store game state, handle staking, and distribute rewards
 
 ---
 
@@ -55,21 +61,23 @@ pepasur/
 ```
 
 **Key Directories:**
-- **[frontend/](./frontend/README.md)**: React-based UI with Aptos wallet integration and real-time gameplay
-- **[backend/](./backend/README.md)**: Express server with Socket.IO for game management and blockchain interaction
-- **[contract/](./contract/README.md)**: Move modules for on-chain game logic, staking, and settlements
+- **[frontend/](./frontend/README.md)**: React-based UI with EVM wallet integration (wagmi/viem) and real-time gameplay
+- **[backend/](./backend/README.md)**: Express server with Socket.IO for game management and EVM blockchain interaction
+- **[contract/](./contract/README.md)**: Solidity smart contracts for on-chain game logic, staking, and settlements
 
 ---
 
 ## 🛠️ Tech Stack
 
 ### Blockchain
-- **Aptos Blockchain**: Layer 1 blockchain with Move smart contracts
-- **Aptos TypeScript SDK**: v1.39.0 (frontend), v5.1.1 (backend)
+- **U2U Network**: EVM-compatible Layer 1 blockchain (Chain ID: 39)
+- **Celo Network**: Mobile-first EVM-compatible blockchain (Chain ID: 42220)
+- **ethers.js v6.8.1**: Ethereum library for blockchain interactions
 
 ### Smart Contracts
-- **Move Language**: Safe, resource-oriented programming for blockchain
-- **Aptos CLI**: Contract compilation, testing, and deployment
+- **Solidity ^0.8.20**: Smart contract programming language for EVM
+- **Hardhat**: Development environment for compiling, testing, and deploying contracts
+- **OpenZeppelin Contracts**: Secure, audited contract libraries
 
 ### Backend
 - **Runtime**: Node.js v18+
@@ -85,7 +93,8 @@ pepasur/
 - **Component Library**: shadcn/ui (Radix UI primitives)
 - **Styling**: Tailwind CSS 4.1.9
 - **State Management**: React Hooks & Context API
-- **Wallet Integration**: @aptos-labs/wallet-adapter-react 7.1.3
+- **Wallet Integration**: wagmi 2.x + viem 2.x (EVM wallet support)
+- **Wallet Connectors**: MetaMask, WalletConnect, and other EVM wallets
 - **Real-time**: socket.io-client 4.8.1
 - **Forms**: react-hook-form 7.60.0
 - **Animations**: framer-motion 12.23.22
@@ -98,9 +107,9 @@ pepasur/
 ### Prerequisites
 
 - **Node.js v18+**: JavaScript runtime for backend and frontend
-- **Aptos Wallet**: Browser extension (Petra, Martian, or Pontem)
-- **APT Tokens**: Devnet tokens for staking (get from [Aptos Faucet](https://aptoslabs.com/testnet-faucet))
-- **Aptos CLI**: For smart contract deployment ([Installation Guide](https://aptos.dev/tools/aptos-cli/install-cli))
+- **EVM Wallet**: Browser extension (MetaMask, Coinbase Wallet, or WalletConnect-compatible wallet)
+- **Native Tokens**: U2U or CELO tokens for staking (testnet tokens available from faucets)
+- **Hardhat**: For smart contract deployment (installed via npm)
 
 ### Deployment Order
 
@@ -115,19 +124,24 @@ The project components must be deployed in the following order:
 ```bash
 # 1. Deploy Smart Contracts
 cd contract
-aptos move publish --profile devnet
-# Note the deployed module address
+npm install
+npx hardhat compile
+npx hardhat run scripts/deploy.js --network u2u
+# Note the deployed contract address
 
-# 2. Start Backend Server
+# 2. Initialize Contract
+npx hardhat run scripts/initialize.js --network u2u
+
+# 3. Start Backend Server
 cd ../backend
 npm install
-# Configure .env with contract address
+# Configure .env with contract address and network settings
 npm run dev
 
-# 3. Start Frontend Application
+# 4. Start Frontend Application
 cd ../frontend
 npm install
-# Configure .env.local with contract and API addresses
+# Configure .env.local with contract address and network settings
 npm run dev
 ```
 
@@ -147,14 +161,18 @@ For detailed setup instructions, see the README files in each directory:
 - **MANAV (Villager)**: Vote during day phase to identify and eliminate Mafia
 - **RISHI (Detective)**: Investigate players to discover their roles
 
-### 1. Get APT Tokens
+### 1. Get Native Tokens
 
-The game runs on **Aptos Devnet**. Get free devnet tokens from the [Aptos Faucet](https://aptoslabs.com/testnet-faucet) to stake in games.
+The game runs on **U2U Network** and **Celo Network**. For testing:
+- **U2U Testnet**: Get testnet U2U tokens from the U2U faucet
+- **Celo Sepolia**: Get testnet CELO from [Celo Faucet](https://faucet.celo.org/alfajores)
+
+For mainnet, acquire U2U or CELO tokens from exchanges or DEXs.
 
 ### 2. Create or Join a Game
 
-- **Create Room**: Stake APT tokens to create a new game lobby with customizable settings
-- **Join Room**: Enter a room code and stake the required APT amount to join an existing game
+- **Create Room**: Stake native tokens (U2U or CELO) to create a new game lobby with customizable settings
+- **Join Room**: Enter a room code and stake the required amount to join an existing game
 
 ### 3. Play the Game
 
@@ -191,39 +209,52 @@ All rewards are distributed automatically through smart contracts and can be wit
 
 ## 🌐 Network Configuration
 
-### Aptos Devnet
+### U2U Network
 
-- **Network**: Devnet (testnet environment)
-- **Chain ID**: 2
-- **RPC URL**: `https://fullnode.devnet.aptoslabs.com/v1`
-- **Block Explorer**: `https://explorer.aptoslabs.com/?network=devnet`
-- **Faucet**: `https://aptoslabs.com/testnet-faucet`
+- **Network**: U2U Mainnet
+- **Chain ID**: 39
+- **RPC URL**: `https://rpc-mainnet.uniultra.xyz`
+- **Block Explorer**: `https://u2uscan.xyz`
+- **Native Token**: U2U
 
-**Note**: Devnet tokens have no real value and are used for testing purposes only.
+### Celo Network
+
+- **Network**: Celo Mainnet
+- **Chain ID**: 42220
+- **RPC URL**: `https://forno.celo.org`
+- **Block Explorer**: `https://explorer.celo.org`
+- **Native Token**: CELO
+
+**Note**: For testing, use Celo Sepolia testnet (Chain ID: 11142220).
 
 ---
 
 ## 📜 Smart Contracts
 
-### Core Game Contract: `pepasur.move`
+### Core Game Contract: `Pepasur.sol`
 
-The Move smart contract handles all on-chain game logic and financial transactions:
+The Solidity smart contract handles all on-chain game logic and financial transactions on EVM-compatible chains:
 
 **Key Features:**
 - **Game Creation**: Initialize game lobbies with customizable stake amounts and player limits
-- **Player Joining**: Secure stake deposits when players join games
-- **Role Commits**: Store cryptographic commitments for role assignments
-- **Settlement System**: Server-signed settlements with signature verification for reward distribution
-- **Withdrawal Mechanism**: Two-step withdrawal pattern for security
-- **Emergency Controls**: Pause mechanism for critical situations
+- **Player Joining**: Secure stake deposits when players join games (payable function)
+- **Settlement System**: Server-signed settlements with ECDSA signature verification for reward distribution
+- **Withdrawal Mechanism**: Two-step withdrawal pattern with reentrancy protection
+- **Game Cancellation**: Cancel games with automatic refunds to all players
+- **Admin Controls**: Update server signer, fee recipient, and house cut percentage
 
-**Entry Functions:**
-- `initialize`: Configure contract with server signer and fee settings
-- `create_game`: Create new game with stake and player requirements
-- `join_game`: Join existing game with stake deposit
-- `settle_game`: Settle completed game with winner payouts
-- `withdraw`: Withdraw pending winnings to player account
-- `cancel_game`: Cancel game in lobby state with refunds
+**Main Functions:**
+- `initialize(address _serverSigner, address _feeRecipient)`: Configure contract post-deployment
+- `createGame(uint256 stakeAmount, uint8 minPlayers)`: Create new game with stake requirements
+- `joinGame(uint64 gameId) payable`: Join existing game with native token stake
+- `settleGame(uint64 gameId, address[] winners, uint256[] payouts, bytes signature)`: Settle game with server signature
+- `withdraw()`: Withdraw pending winnings to player account
+- `cancelGame(uint64 gameId)`: Cancel game and refund all players
+
+**View Functions:**
+- `games(uint64 gameId)`: Get game information
+- `pendingWithdrawals(address player)`: Check pending withdrawal balance
+- `getContractInfo()`: Get contract configuration
 
 For detailed contract documentation, deployment instructions, and security considerations, see [contract/README.md](./contract/README.md).
 
@@ -231,11 +262,13 @@ For detailed contract documentation, deployment instructions, and security consi
 
 ## 🔐 Security Features
 
-- **Commit-Reveal Mechanism**: Prevents action manipulation by requiring cryptographic commitments
-- **Server Signature Verification**: All settlements require authorized server signatures
-- **Two-Step Withdrawals**: Prevents reentrancy attacks with queued withdrawal pattern
-- **Role Secrecy**: Player roles never stored on-chain, only commitment hashes
-- **Emergency Pause**: Contract can be paused in critical situations
+- **Commit-Reveal Mechanism**: Prevents action manipulation by requiring cryptographic commitments (off-chain)
+- **ECDSA Signature Verification**: All settlements require authorized server signatures using ecrecover
+- **Reentrancy Protection**: Checks-effects-interactions pattern prevents reentrancy attacks
+- **Two-Step Withdrawals**: Prevents reentrancy with queued withdrawal pattern
+- **Role Secrecy**: Player roles never stored on-chain, maintained off-chain by backend
+- **Access Control**: Admin-only functions for critical operations
+- **House Cut Limits**: Maximum 20% house fee enforced at contract level
 
 ---
 
@@ -253,7 +286,17 @@ MIT
 
 ## 🔗 Links
 
-- **Aptos Documentation**: [https://aptos.dev/](https://aptos.dev/)
-- **Move Language Guide**: [https://move-language.github.io/move/](https://move-language.github.io/move/)
-- **Aptos Explorer**: [https://explorer.aptoslabs.com/](https://explorer.aptoslabs.com/)
-- **Aptos Faucet**: [https://aptoslabs.com/testnet-faucet](https://aptoslabs.com/testnet-faucet)
+### Networks
+- **U2U Network**: [https://uniultra.xyz/](https://uniultra.xyz/)
+- **U2U Explorer**: [https://u2uscan.xyz](https://u2uscan.xyz)
+- **Celo Network**: [https://celo.org/](https://celo.org/)
+- **Celo Explorer**: [https://explorer.celo.org/](https://explorer.celo.org/)
+- **Celo Sepolia Explorer**: [https://celo-sepolia.blockscout.com/](https://celo-sepolia.blockscout.com/)
+
+### Documentation
+- **Hardhat**: [https://hardhat.org/docs](https://hardhat.org/docs)
+- **Solidity**: [https://docs.soliditylang.org/](https://docs.soliditylang.org/)
+- **ethers.js**: [https://docs.ethers.org/](https://docs.ethers.org/)
+- **wagmi**: [https://wagmi.sh/](https://wagmi.sh/)
+- **viem**: [https://viem.sh/](https://viem.sh/)
+- **OpenZeppelin**: [https://docs.openzeppelin.com/](https://docs.openzeppelin.com/)

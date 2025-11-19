@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const connectDB = async () => {
   try {
-    const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/pepasur-aptos';
+    const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/pepasur';
 
     await mongoose.connect(mongoURI, {
       useNewUrlParser: true,

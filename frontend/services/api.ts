@@ -56,9 +56,9 @@ export interface Game {
       role: string
       stakeAmount: string
       rewardAmount: string
-      rewardInAPT: string
+      rewardInToken: string
       totalReceived: string
-      totalReceivedInAPT: string
+      totalReceivedInToken: string
     }>
   }
 }
@@ -285,7 +285,7 @@ class ApiService {
       data?: {
         transactionHash: string
         amount: number
-        amountOctas: number
+        amountWei: string
         recipient: string
         nextClaimTime: string
         message: string
@@ -326,7 +326,7 @@ class ApiService {
         server: {
           address: string
           balance: number | null
-          balanceAPT: number | null
+          balanceToken: number | null
           status: string
         }
       }

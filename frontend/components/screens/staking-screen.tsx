@@ -7,17 +7,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import GifLoader from "@/components/common/gif-loader"
 import RetroAnimation from "@/components/common/retro-animation"
-import { useWallet, type InputTransactionData } from "@aptos-labs/wallet-adapter-react"
-import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk"
-import { smoothSendClient } from "@/lib/smoothsend"
+import { useWalletContext } from "@/contexts/WalletContext"
+import { useJoinGame } from "@/hooks/useGameContract"
+import { formatEther, parseEther } from "viem"
 import LobbySettingsDialog, { FullGameSettings, DEFAULT_GAME_SETTINGS } from "@/components/game/lobby-settings-dialog"
 import FaucetButton from "@/components/wallet/faucet-button"
-
-// Initialize Aptos client
-const config = new AptosConfig({
-  network: (process.env.NEXT_PUBLIC_APTOS_NETWORK || 'devnet') as Network
-});
-const aptos = new Aptos(config);
+import { activeChain } from "@/lib/wagmi"
 
 interface StakingScreenProps {
   gameId?: string // Optional for room creation
@@ -62,7 +57,6 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
 
   const [stakeAmountInput, setStakeAmountInput] = useState('0.001');
   const [isPublic, setIsPublic] = useState(false);
-  const [gaslessMode, setGaslessMode] = useState(true); // Gasless mode enabled by default
   const [gameSettings, setGameSettings] = useState<FullGameSettings>(DEFAULT_GAME_SETTINGS);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
 
@@ -73,191 +67,61 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
     }
   }, [initialRoomCode])
 
-  // Validate and convert stake amount to Octas (1 APT = 100,000,000 Octas)
+  // Validate and convert stake amount to Wei (1 token = 10^18 Wei)
   const getValidatedStakeAmount = () => {
     const parsed = parseFloat(stakeAmountInput);
     if (isNaN(parsed) || parsed < 0.001) {
-      return Math.floor(0.001 * 100000000); // Minimum 0.001 APT as integer
+      return '0.001'; // Minimum 0.001 tokens
     }
-    return Math.floor(parsed * 100000000); // Ensure integer for Move function
+    return parsed.toString();
   };
 
   const stakeAmount = getValidatedStakeAmount();
-  const stakeAmountInAPT = (stakeAmount / 100000000).toFixed(4);
+  const stakeAmountFormatted = parseFloat(stakeAmount).toFixed(4);
 
-  // Aptos wallet hooks
-  const { account, connected, signAndSubmitTransaction, signTransaction } = useWallet()
+  // EVM wallet hooks
+  const { address, isConnected, balance, balanceFormatted, isCorrectNetwork } = useWalletContext();
+  const { joinGame, hash, isPending, isConfirming, isSuccess, error: joinError } = useJoinGame();
 
-  // Helper function to fetch balance
-  const fetchBalance = async () => {
-    if (!account?.address) {
-      setBalanceLoading(false)
-      return
-    }
+  // Update balance info when wallet balance changes
+  useEffect(() => {
+    if (balanceFormatted) {
+      const balanceNum = parseFloat(balanceFormatted);
+      const stakeNum = parseFloat(stakeAmount);
 
-    try {
-      setBalanceLoading(true)
-
-      // SDK handles address parsing internally - just pass the string
-      // Use getAccountAPTAmount - simpler and more reliable
-      try {
-        // SDK v1.39.0 expects object with accountAddress as string
-        const balance = await aptos.getAccountAPTAmount({
-          accountAddress: account.address.toString()
-        });
-
-        const balanceInAPT = (Number(balance) / 100000000).toFixed(4);
-        console.log('💰 APT Balance:', balance, 'Octas =', balanceInAPT, 'APT');
-
-        setBalanceInfo({
-          balance: balance.toString(),
-          balanceInAPT,
-          sufficient: Number(balance) >= stakeAmount
-        });
-      } catch (error) {
-        console.error('Error with getAccountAPTAmount:', error);
-
-        // Fallback to getAccountResources
-        console.log('⚠️ Trying getAccountResources fallback...');
-        // SDK v1.39.0 expects object with accountAddress as string
-        const resources = await aptos.getAccountResources({
-          accountAddress: account.address.toString()
-        });
-
-        const aptosCoinResource = resources.find(
-          (r) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
-        );
-
-        if (aptosCoinResource) {
-          const balance = (aptosCoinResource.data as any).coin.value;
-          const balanceInAPT = (Number(balance) / 100000000).toFixed(4);
-
-          console.log('💰 APT Balance (Resources):', balance, 'Octas =', balanceInAPT, 'APT');
-
-          setBalanceInfo({
-            balance: balance.toString(),
-            balanceInAPT,
-            sufficient: Number(balance) >= stakeAmount
-          });
-        } else {
-          setBalanceInfo({
-            balance: "0",
-            balanceInAPT: "0.0000",
-            sufficient: false
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching balance:', error);
       setBalanceInfo({
-        balance: "0",
-        balanceInAPT: "0.0000",
+        balance: balance || '0',
+        balanceInAPT: parseFloat(balanceFormatted).toFixed(4),
+        sufficient: balanceNum >= stakeNum
+      });
+      setBalanceLoading(false);
+    } else if (address) {
+      setBalanceInfo({
+        balance: '0',
+        balanceInAPT: '0.0000',
         sufficient: false
       });
-    } finally {
-      setBalanceLoading(false)
+      setBalanceLoading(false);
     }
-  }
+  }, [balanceFormatted, balance, address, stakeAmount]);
 
-  // Helper function to convert gameId to proper format for Move function
-  const convertGameIdForMove = (gameId: string | number): number => {
+  // Helper function to convert gameId to bigint for contract calls
+  const convertGameIdToBigInt = (gameId: string | number): bigint => {
     if (typeof gameId === 'number') {
-      return gameId
+      return BigInt(gameId);
     }
-
     if (typeof gameId === 'string') {
-      // If it's a string number, convert to number
+      // If it's a string number, convert to bigint
       if (/^\d+$/.test(gameId)) {
-        return parseInt(gameId, 10)
+        return BigInt(gameId);
       }
-      // If it's a hex string, convert to number
+      // If it's a hex string, convert to bigint
       else if (gameId.startsWith('0x')) {
-        return parseInt(gameId, 16)
+        return BigInt(gameId);
       }
     }
-
-    throw new Error(`Invalid gameId format: ${gameId}`)
-  }
-
-  // Helper function to execute gasless transaction
-  const executeGaslessTransaction = async (contractGameId: string) => {
-    if (!account?.address || !signTransaction) {
-      throw new Error('Wallet not properly connected for gasless transactions')
-    }
-
-    console.log('🌟 [Gasless] Testnet: Using simple transfer with fee payer...')
-    console.log('🌟 [Gasless] Contract Game ID:', contractGameId, typeof contractGameId)
-
-    try {
-
-      // Step 1: Initialize Aptos SDK with TESTNET (critical!)
-      const { Aptos: AptosSDK, AptosConfig, Network: AptosNetwork } = await import('@aptos-labs/ts-sdk')
-      const aptosConfig = new AptosConfig({ network: AptosNetwork.TESTNET })
-      const aptosClient = new AptosSDK(aptosConfig)
-
-      console.log('🌟 [Gasless] Building transaction with withFeePayer flag...')
-
-      // Convert contractGameId to proper format for Move function
-      const gameIdArg = convertGameIdForMove(contractGameId)
-      console.log('🌟 [Gasless] Using game ID argument:', gameIdArg, typeof gameIdArg)
-
-      // Step 2: Build transaction with withFeePayer flag (testnet gasless mode)
-      const rawTransaction = await aptosClient.transaction.build.simple({
-        sender: account.address,
-        withFeePayer: true, // Critical: This enables gasless transactions
-        data: {
-          function: `${process.env.NEXT_PUBLIC_PEPASUR_CONTRACT_ADDRESS}::pepasur::join_game`,
-          functionArguments: [gameIdArg],
-        }
-      })
-
-      console.log('🌟 [Gasless] Signing transaction...')
-
-      // Step 3: Sign the transaction
-      const signResponse = await signTransaction({ transactionOrPayload: rawTransaction })
-
-      if (!signResponse || !signResponse.authenticator) {
-        throw new Error('Failed to sign transaction')
-      }
-
-      console.log('🌟 [Gasless] Serializing and submitting to relayer...')
-
-      // Step 4: Serialize and submit to SmoothSend
-      const transactionBytes = rawTransaction.bcsToBytes()
-      const authenticatorBytes = signResponse.authenticator.bcsToBytes()
-
-      const submitResponse = await smoothSendClient.submitSignedTransaction(
-        Array.from(transactionBytes),
-        Array.from(authenticatorBytes)
-      )
-
-      if (!submitResponse.success) {
-        throw new Error(submitResponse.message || 'Gasless transaction failed')
-      }
-
-      const txHash = submitResponse.txnHash || submitResponse.hash
-      if (!txHash) {
-        throw new Error('No transaction hash returned')
-      }
-
-      console.log('🌟 [Gasless] ✅ Testnet transaction successful!', submitResponse)
-      return txHash
-
-    } catch (error) {
-      console.error('🌟 [Gasless] ❌ Transaction failed:', error)
-      console.error('🌟 [Gasless] Error details:', {
-        contractGameId,
-        accountAddress: account.address,
-        error: error.message
-      })
-      throw error
-    }
-  }
-
-  // Fetch account balance
-  useEffect(() => {
-    fetchBalance()
-  }, [account?.address])
+    throw new Error(`Invalid gameId format: ${gameId}`);
+  };
 
   const handleStakeSuccess = async (transactionHash: string, gameId?: string, roomCodeParam?: string) => {
     try {
@@ -333,9 +197,32 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
     }
   }
 
+  // Watch for transaction success
+  useEffect(() => {
+    if (isSuccess && hash && !hasProcessedSuccess) {
+      console.log('✅ Transaction confirmed:', hash);
+      setHasProcessedSuccess(true);
+
+      // Determine which gameId and roomCode to use
+      const gameIdToUse = mode === 'create' ? createdGameId : joinGameId;
+      const roomCodeToUse = mode === 'create' ? createdRoomCode : roomCode;
+
+      handleStakeSuccess(hash, gameIdToUse || undefined, roomCodeToUse || undefined);
+    }
+  }, [isSuccess, hash, hasProcessedSuccess, mode, createdGameId, joinGameId, createdRoomCode, roomCode]);
+
+  // Watch for transaction errors
+  useEffect(() => {
+    if (joinError) {
+      console.error('❌ Transaction error:', joinError);
+      setError(`Transaction failed: ${joinError.message || 'Unknown error'}`);
+      setIsStaking(false);
+    }
+  }, [joinError]);
+
   const handleStake = async () => {
     if (mode === 'create' && parseFloat(stakeAmountInput) < 0.001) {
-      setError('Stake amount must be at least 0.001 APT');
+      setError(`Stake amount must be at least 0.001 ${activeChain.nativeCurrency.symbol}`);
       return;
     }
 
@@ -346,33 +233,39 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
     }
 
     if (!balanceInfo?.sufficient) {
-      setError('Insufficient balance. You need at least 0.001 APT to stake.')
+      setError(`Insufficient balance. You need at least 0.001 ${activeChain.nativeCurrency.symbol} to stake.`)
       return
     }
 
-    if (!account?.address) {
+    if (!address) {
       setError('Wallet not connected')
+      return
+    }
+
+    if (!isCorrectNetwork) {
+      setError(`Please switch to ${activeChain.name}`)
       return
     }
 
     try {
       setIsStaking(true)
       setError('')
+      setHasProcessedSuccess(false)
 
       if (mode === 'create') {
-        // For room creation: use backend to create and join in one transaction
+        // For room creation: use backend to create game, then join via contract
         console.log('🎮 Creating room with staking...')
-        console.log('Contract:', process.env.NEXT_PUBLIC_PEPASUR_CONTRACT_ADDRESS)
+        console.log('Contract:', process.env.NEXT_PUBLIC_CONTRACT_ADDRESS)
         console.log('Stake Amount:', stakeAmount)
 
-        // Call backend to handle create-and-join atomically
+        // Call backend to create game
         try {
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/game/create-and-join`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               creatorAddress: playerAddress,
-              stakeAmount: stakeAmount, // Use the state variable here
+              stakeAmount: parseEther(stakeAmount).toString(), // Convert to Wei string
               minPlayers: 4, // Use default minPlayers (not customizable)
               isPublic: isPublic,
               settings: gameSettings // Pass custom game settings (phase durations only)
@@ -386,57 +279,14 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
             setCreatedRoomCode(result.roomCode)
             setCreatedGameId(result.gameId)
 
-            // Now stake from user's wallet to join the game
+            // Now stake from user's wallet to join the game via EVM contract
             console.log('💰 User staking to join created game:', result.contractGameId)
 
-            let txHash: string
+            const gameIdBigInt = convertGameIdToBigInt(result.contractGameId)
+            console.log('🔧 Converted gameId to BigInt:', gameIdBigInt)
 
-            if (gaslessMode) {
-              // Use gasless transaction
-              console.log('🌟 Using gasless mode for create')
-              txHash = await executeGaslessTransaction(result.contractGameId)
-              // Wait for confirmation
-              await aptos.waitForTransaction({ transactionHash: txHash })
-              console.log('✅ Gasless transaction confirmed:', txHash)
-              setHasProcessedSuccess(true)
-              handleStakeSuccess(txHash, result.gameId, result.roomCode)
-            } else {
-              // Use normal transaction
-              const contractAddress = process.env.NEXT_PUBLIC_PEPASUR_CONTRACT_ADDRESS || '0x9ce89cb58b06ea8f9ddf28093c8f40dd6b7129a8404f47040f0a7e78786fab38'
-              console.log('🔧 Contract address:', contractAddress)
-              console.log('🔧 Raw contractGameId:', result.contractGameId, typeof result.contractGameId)
-
-              const gameIdArg = convertGameIdForMove(result.contractGameId)
-              console.log('🔧 Converted gameIdArg:', gameIdArg, typeof gameIdArg)
-
-              if (!contractAddress) {
-                throw new Error('Contract address not configured')
-              }
-
-              const transaction: InputTransactionData = {
-                data: {
-                  function: `${contractAddress}::pepasur::join_game`,
-                  functionArguments: [gameIdArg],
-                },
-              }
-
-              console.log('🔧 Transaction data:', transaction.data)
-
-              const txResponse = await signAndSubmitTransaction(transaction)
-
-              // Wait for transaction confirmation
-              try {
-                await aptos.waitForTransaction({ transactionHash: txResponse.hash })
-                console.log('✅ Transaction confirmed:', txResponse.hash)
-                setHasProcessedSuccess(true)
-                // Pass gameId and roomCode directly from result
-                handleStakeSuccess(txResponse.hash, result.gameId, result.roomCode)
-              } catch (error) {
-                console.error('❌ Transaction failed:', error)
-                setError('Transaction failed. Please try again.')
-                setIsStaking(false)
-              }
-            }
+            // Call joinGame from wagmi hook
+            joinGame(gameIdBigInt, stakeAmount)
           } else {
             console.error('❌ Backend create failed:', result.error)
             setError(`Failed to create room: ${result.error}`)
@@ -450,7 +300,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
       } else {
         // For joining: first get gameId from room code, then stake
         console.log('🎮 Joining room with staking...')
-        console.log('Contract:', process.env.NEXT_PUBLIC_PEPASUR_CONTRACT_ADDRESS)
+        console.log('Contract:', process.env.NEXT_PUBLIC_CONTRACT_ADDRESS)
         console.log('Room Code:', roomCode)
         console.log('Stake Amount:', stakeAmount)
 
@@ -470,109 +320,27 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
           // Store the game manager's gameId for later use
           setJoinGameId(gameData.gameId)
 
-          // Now stake to join the game
+          // Now stake to join the game via EVM contract
           console.log('💰 Staking to join game:', gameData.contractGameId)
 
-          let txHash: string
+          const gameIdBigInt = convertGameIdToBigInt(gameData.contractGameId)
+          console.log('🔧 Converted gameId to BigInt:', gameIdBigInt)
 
-          if (gaslessMode) {
-            // Use gasless transaction
-            console.log('🌟 Using gasless mode for join')
-            txHash = await executeGaslessTransaction(gameData.contractGameId)
-            // Wait for confirmation
-            await aptos.waitForTransaction({ transactionHash: txHash })
-            console.log('✅ Gasless transaction confirmed:', txHash)
-            setHasProcessedSuccess(true)
-            handleStakeSuccess(txHash, gameData.gameId, gameData.roomCode)
-          } else {
-            // Use normal transaction
-            const contractAddress = process.env.NEXT_PUBLIC_PEPASUR_CONTRACT_ADDRESS || '0x9ce89cb58b06ea8f9ddf28093c8f40dd6b7129a8404f47040f0a7e78786fab38'
-            console.log('🔧 Contract address:', contractAddress)
-            console.log('🔧 Raw contractGameId:', gameData.contractGameId, typeof gameData.contractGameId)
+          // Get stake amount from game data
+          const gameStakeAmount = formatEther(BigInt(gameData.stakeAmount))
+          console.log('💰 Game stake amount:', gameStakeAmount)
 
-            const gameIdArg = convertGameIdForMove(gameData.contractGameId)
-            console.log('🔧 Converted gameIdArg:', gameIdArg, typeof gameIdArg)
-
-            if (!contractAddress) {
-              throw new Error('Contract address not configured')
-            }
-
-            const transaction: InputTransactionData = {
-              data: {
-                function: `${contractAddress}::pepasur::join_game`,
-                functionArguments: [gameIdArg],
-              },
-            }
-
-            console.log('🔧 Transaction data:', transaction.data)
-
-            const txResponse = await signAndSubmitTransaction(transaction)
-
-            // Wait for transaction confirmation
-            try {
-              await aptos.waitForTransaction({ transactionHash: txResponse.hash })
-              console.log('✅ Transaction confirmed:', txResponse.hash)
-              setHasProcessedSuccess(true)
-              // Pass gameId directly instead of relying on state (which updates async)
-              handleStakeSuccess(txResponse.hash, gameData.gameId, gameData.roomCode)
-            } catch (error) {
-              console.error('❌ Transaction failed:', error)
-              setError('Transaction failed. Please try again.')
-              setIsStaking(false)
-            }
-          }
+          // Call joinGame from wagmi hook
+          joinGame(gameIdBigInt, gameStakeAmount)
         } else {
           // We already have gameId, just stake
           console.log('💰 Staking to join game:', gameId)
 
-          let txHash: string
+          const gameIdBigInt = convertGameIdToBigInt(gameId)
+          console.log('🔧 Converted gameId to BigInt:', gameIdBigInt)
 
-          if (gaslessMode) {
-            // Use gasless transaction
-            console.log('🌟 Using gasless mode for join with existing gameId')
-            txHash = await executeGaslessTransaction(gameId)
-            // Wait for confirmation
-            await aptos.waitForTransaction({ transactionHash: txHash })
-            console.log('✅ Gasless transaction confirmed:', txHash)
-            setHasProcessedSuccess(true)
-            handleStakeSuccess(txHash, gameId)
-          } else {
-            // Use normal transaction
-            const contractAddress = process.env.NEXT_PUBLIC_PEPASUR_CONTRACT_ADDRESS || '0x9ce89cb58b06ea8f9ddf28093c8f40dd6b7129a8404f47040f0a7e78786fab38'
-            console.log('🔧 Contract address:', contractAddress)
-            console.log('🔧 Raw gameId:', gameId, typeof gameId)
-
-            const gameIdArg = convertGameIdForMove(gameId)
-            console.log('🔧 Converted gameIdArg:', gameIdArg, typeof gameIdArg)
-
-            if (!contractAddress) {
-              throw new Error('Contract address not configured')
-            }
-
-            const transaction: InputTransactionData = {
-              data: {
-                function: `${contractAddress}::pepasur::join_game`,
-                functionArguments: [gameIdArg],
-              },
-            }
-
-            console.log('🔧 Transaction data:', transaction.data)
-
-            const txResponse = await signAndSubmitTransaction(transaction)
-
-            // Wait for transaction confirmation
-            try {
-              await aptos.waitForTransaction({ transactionHash: txResponse.hash })
-              console.log('✅ Transaction confirmed:', txResponse.hash)
-              setHasProcessedSuccess(true)
-              // Pass gameId directly (roomCode will be from state)
-              handleStakeSuccess(txResponse.hash, gameId)
-            } catch (error) {
-              console.error('❌ Transaction failed:', error)
-              setError('Transaction failed. Please try again.')
-              setIsStaking(false)
-            }
-          }
+          // Call joinGame from wagmi hook
+          joinGame(gameIdBigInt, stakeAmount)
         }
       }
 
@@ -630,7 +398,6 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
             <div className="text-lg sm:text-xl font-bold font-press-start pixel-text-3d-white">
               STAKE TO PLAY
             </div>
-
           </div>
 
           {/* Balance and Network Info */}
@@ -641,7 +408,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
                 <div className="space-y-1 sm:space-y-2">
                   <div className="text-xs sm:text-sm font-press-start text-gray-300">YOUR BALANCE</div>
                   <div className="text-base sm:text-lg font-bold text-white break-all">
-                    {balanceInfo.balanceInAPT} APT
+                    {balanceInfo.balanceInAPT} {activeChain.nativeCurrency.symbol}
                   </div>
                   <div className={`text-xs sm:text-sm font-press-start ${balanceInfo.sufficient ? 'text-green-400' : 'text-red-400'}`}>
                     {balanceInfo.sufficient ? '✅ SUFFICIENT' : '❌ INSUFFICIENT'}
@@ -655,11 +422,16 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
               <div className="space-y-1 sm:space-y-2">
                 <div className="text-xs sm:text-sm font-press-start text-gray-300">NETWORK</div>
                 <div className="text-base sm:text-lg font-bold text-white break-words">
-                  {connected ? '✅ Aptos Testnet' : '❌ Not Connected'}
+                  {isConnected ? `✅ ${activeChain.name}` : '❌ Not Connected'}
                 </div>
-                {!connected && (
+                {!isConnected && (
                   <div className="text-xs sm:text-sm text-yellow-400 break-words">
-                    Please connect your Aptos wallet
+                    Please connect your wallet
+                  </div>
+                )}
+                {isConnected && !isCorrectNetwork && (
+                  <div className="text-xs sm:text-sm text-red-400 break-words">
+                    Wrong network! Switch to {activeChain.name}
                   </div>
                 )}
               </div>
@@ -671,11 +443,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
             <FaucetButton
               walletAddress={playerAddress || null}
               onSuccess={async () => {
-                console.log('✅ Faucet claim successful! Refreshing balance...')
-                // Wait a bit for blockchain confirmation
-                setTimeout(() => {
-                  fetchBalance()
-                }, 2000)
+                console.log('✅ Faucet claim successful! Balance will refresh automatically')
               }}
             />
           </div>
@@ -726,31 +494,11 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
             </>
           )}
 
-          {/* Gasless Mode Toggle */}
-          <Card className="p-2 sm:p-3 bg-[#1a1a1a]/50 border border-[#333333]">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xs sm:text-sm font-press-start text-gray-300">GAS FEES</div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {gaslessMode ? '✨ FREE - No gas fees!' : '⛽ Pay small gas fee'}
-                </div>
-              </div>
-              <Button
-                onClick={() => setGaslessMode(!gaslessMode)}
-                variant={gaslessMode ? 'pixel' : 'outline'}
-                size="pixel"
-                className="text-xs"
-              >
-                {gaslessMode ? '✨ GASLESS' : '⛽ NORMAL'}
-              </Button>
-            </div>
-          </Card>
-
           {/* Stake Amount Input - Only show for create mode */}
           {mode === 'create' && (
             <div className="space-y-1 sm:space-y-2">
               <Label htmlFor="stakeAmount" className="text-xs sm:text-sm font-press-start text-gray-300">
-                STAKE AMOUNT (APT)
+                STAKE AMOUNT ({activeChain.nativeCurrency.symbol})
               </Label>
               <Input
                 id="stakeAmount"
@@ -783,7 +531,6 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
                 step="0.001"
                 className="font-press-start text-center text-sm sm:text-lg tracking-widest"
               />
-
             </div>
           )}
 
@@ -803,15 +550,15 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
                 />
                 <Button
                   onClick={handleStake}
-                  disabled={isStaking || !connected || !balanceInfo?.sufficient || roomCode.length !== 6}
+                  disabled={isStaking || isPending || isConfirming || !isConnected || !balanceInfo?.sufficient || roomCode.length !== 6 || !isCorrectNetwork}
                   variant="pixel"
                   size="pixelLarge"
                   className="w-full"
                 >
-                  {isStaking ? (
+                  {isStaking || isPending || isConfirming ? (
                     <div className="flex items-center justify-center gap-2">
                       <GifLoader size="sm" />
-                      <span>STAKING...</span>
+                      <span>{isPending ? 'CONFIRM IN WALLET...' : 'STAKING...'}</span>
                     </div>
                   ) : (
                     `💰 Stake to join `
@@ -863,7 +610,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
                   Players: {stakingInfo.playersCount}/{stakingInfo.minPlayers}
                 </div>
                 <div className="text-xs sm:text-sm text-gray-400">
-                  Total Staked: {stakingInfo.totalStakedInAPT} APT
+                  Total Staked: {stakingInfo.totalStakedInAPT} {activeChain.nativeCurrency.symbol}
                 </div>
               </div>
             </Card>
@@ -874,18 +621,18 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
             {mode === 'create' && (
               <Button
                 onClick={handleStake}
-                disabled={isStaking || !connected || !balanceInfo?.sufficient}
+                disabled={isStaking || isPending || isConfirming || !isConnected || !balanceInfo?.sufficient || !isCorrectNetwork}
                 variant="pixel"
                 size="pixelLarge"
                 className="w-full"
               >
-                {isStaking ? (
+                {isStaking || isPending || isConfirming ? (
                   <div className="flex items-center justify-center gap-2">
                     <GifLoader size="sm" />
-                    <span>STAKING...</span>
+                    <span>{isPending ? 'CONFIRM IN WALLET...' : 'STAKING...'}</span>
                   </div>
                 ) : (
-                  `🎮 STAKE ${stakeAmountInAPT} APT`
+                  `🎮 STAKE ${stakeAmountFormatted} ${activeChain.nativeCurrency.symbol}`
                 )}
               </Button>
             )}
@@ -902,7 +649,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
 
           {/* Info */}
           <div className="text-xs text-gray-500 text-center space-y-0.5 sm:space-y-1">
-            <div>• Minimum stake: 0.001 APT</div>
+            <div>• Minimum stake: 0.001 {activeChain.nativeCurrency.symbol}</div>
             <div>• Winners get 98% of total pool</div>
             <div>• Losers get 0% of total pool</div>
             <div>• 2% house cut applies</div>

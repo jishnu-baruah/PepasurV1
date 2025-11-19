@@ -22,6 +22,7 @@ import ColoredPlayerName from "@/components/game/colored-player-name"
 import LobbySettingsDialog, { FullGameSettings, DEFAULT_GAME_SETTINGS } from "@/components/game/lobby-settings-dialog"
 import FaucetButton from "@/components/wallet/faucet-button"
 import { GameSettings } from "@/services/api"
+import { activeChain } from "@/lib/wagmi"
 
 interface LobbyScreenProps {
   players: Player[]
@@ -517,7 +518,7 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
                   'Server is unreachable. Leaving will clear your local session, but the server won\'t be notified until it\'s back online.'
                 ) : (
                   game?.stakingRequired
-                    ? 'Are you sure you want to leave the lobby? Your staked APT will not be returned.'
+                    ? `Are you sure you want to leave the lobby? Your staked ${activeChain.nativeCurrency.symbol} will not be returned.`
                     : 'Are you sure you want to leave this lobby?'
                 )}
               </div>
