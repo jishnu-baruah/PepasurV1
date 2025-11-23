@@ -72,7 +72,6 @@ yarn-error.log*
 smoothsend-demo/
 
 # Documentation files (ignore all .md files)
-# *.md
 !README.md
 !business_logic_analysis.md
 !COMMIT_REVEAL_INTEGRATION_PLAN.md
