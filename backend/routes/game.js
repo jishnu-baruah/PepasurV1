@@ -1524,5 +1524,63 @@ module.exports = (gameManagerInstance, evmService) => {
 
 
 
+  // DEBUG: Force phase transition (remove in production)
+  router.post('/:gameId/debug/force-phase/:phase', async (req, res) => {
+    try {
+      const { gameId, phase } = req.params;
+      const game = gameManager.getGame(gameId);
+
+      if (!game) {
+        return res.status(404).json({ error: 'Game not found' });
+      }
+
+      console.log(`🔧 DEBUG: Forcing phase transition for game ${gameId} from ${game.phase} to ${phase}`);
+
+      // Clear existing timers
+      if (game.timerInterval) {
+        clearInterval(game.timerInterval);
+        game.timerInterval = null;
+      }
+      if (game.readyTimer) {
+        clearTimeout(game.readyTimer);
+        game.readyTimer = null;
+      }
+
+      // Force phase transition
+      if (phase === 'task') {
+        game.phase = 'task';
+        game.task = gameManager.taskManager.generateTask();
+        game.pendingActions = {};
+        game.timeLeft = game.settings?.taskPhaseDuration || 30;
+        gameManager.phaseStartTimes.set(gameId, Date.now());
+        await gameManager.phaseManager.startTimer(gameId, true);
+      } else if (phase === 'voting') {
+        game.phase = 'voting';
+        game.timeLeft = game.settings?.votingPhaseDuration || 10;
+        game.votes = {};
+        game.votingResult = null;
+        game.votingResolved = false;
+        gameManager.phaseStartTimes.set(gameId, Date.now());
+        await gameManager.phaseManager.startTimer(gameId, true);
+      }
+
+      // Emit update
+      if (gameManager.socketManager) {
+        gameManager.socketManager.emitGameStateUpdate(gameId);
+      }
+
+      res.json({
+        success: true,
+        message: `Phase forced to ${phase}`,
+        currentPhase: game.phase,
+        timeLeft: game.timeLeft
+      });
+
+    } catch (error) {
+      console.error('❌ Error forcing phase transition:', error);
+      res.status(500).json({ error: 'Failed to force phase transition' });
+    }
+  });
+
   return router;
 };
