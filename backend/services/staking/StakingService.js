@@ -1,15 +1,15 @@
 const crypto = require('crypto');
+const { ethers } = require('ethers');
 
 class StakingService {
   constructor() {
-    this.stakeAmount = 100000; // 0.001 token (in smallest unit)
+    // Note: Stake amounts are now determined per-game, not hardcoded
+    // These legacy values are kept for backward compatibility only
     this.minPlayers = 4;
-    this.totalPool = 400000; // 0.004 token (4 players x 0.001 token)
-    this.stakedGames = new Map(); // Track staked games
-    this.playerStakes = new Map(); // Track individual player stakes
+    this.stakedGames = new Map(); // Track staked games - stores Wei as BigInt
+    this.playerStakes = new Map(); // Track individual player stakes - stores Wei as BigInt
     console.log('💰 Staking service initialized successfully');
-    console.log(`💰 Stake amount: ${this.stakeAmount} (smallest unit) per player`);
-    console.log(`💰 Total pool: ${this.totalPool} (smallest unit) for 4 players`);
+    console.log('💰 Stake amounts are configured per-game (stored in Wei as BigInt)');
   }
 
   async checkBalance(playerAddress) {
@@ -25,73 +25,10 @@ class StakingService {
   }
 
   async stakeForGame(gameId, playerAddress, roomCode) {
-    try {
-      console.log(`💰 Player ${playerAddress} staking ${this.stakeAmount} tokens for game ${gameId}`);
-
-      if (!this.validateRoomCode(roomCode)) {
-        throw new Error('Invalid room code');
-      }
-
-      if (!this.stakedGames.has(gameId)) {
-        this.stakedGames.set(gameId, {
-          roomCode: roomCode,
-          players: [],
-          totalStaked: 0,
-          status: 'waiting',
-          createdAt: Date.now()
-        });
-      }
-
-      const game = this.stakedGames.get(gameId);
-
-      if (game.players.includes(playerAddress)) {
-        throw new Error('Player already staked for this game');
-      }
-
-      if (game.players.length >= this.minPlayers) {
-        throw new Error('Game is full');
-      }
-
-      if (game.status !== 'waiting') {
-        throw new Error('Game has already started');
-      }
-
-      // Note: Actual staking happens on the frontend via wallet interaction
-      // This backend method just tracks the game state
-      const txHash = `mock-tx-${Date.now()}`; // Mock transaction hash for tracking
-
-      game.players.push(playerAddress);
-      game.totalStaked += this.stakeAmount;
-
-      this.playerStakes.set(`${gameId}-${playerAddress}`, {
-        gameId: gameId,
-        playerAddress: playerAddress,
-        amount: this.stakeAmount,
-        txHash: txHash,
-        timestamp: Date.now(),
-        status: 'staked'
-      });
-
-      console.log(`💰 Stake successful! Game ${gameId} now has ${game.players.length}/${this.minPlayers} players`);
-      console.log(`💰 Total staked: ${game.totalStaked} tokens`);
-
-      if (game.players.length === this.minPlayers) {
-        game.status = 'full';
-        console.log(`🎮 Game ${gameId} is ready to start with full stake pool!`);
-      }
-
-      return {
-        success: true,
-        txHash: txHash,
-        amount: this.stakeAmount.toString(),
-        gameStatus: game.status,
-        playersCount: game.players.length,
-        totalStaked: game.totalStaked.toString()
-      };
-    } catch (error) {
-      console.error('❌ Error staking for game:', error);
-      throw error;
-    }
+    // DEPRECATED: This method is no longer used in the EVM flow
+    // Stakes are now recorded via StakingManager.recordPlayerStake() after on-chain verification
+    console.warn('⚠️ stakeForGame() is deprecated - use StakingManager.recordPlayerStake() instead');
+    throw new Error('stakeForGame() is deprecated - stakes must be recorded after on-chain verification');
   }
 
   getGameStakingInfo(gameId) {
@@ -100,14 +37,32 @@ class StakingService {
       return null;
     }
 
+    // TYPE GUARD: Handle totalStaked as BigInt or Number
+    let totalStakedStr, totalStakedInToken;
+    if (typeof game.totalStaked === 'bigint') {
+      totalStakedStr = game.totalStaked.toString();
+      totalStakedInToken = ethers.formatEther(game.totalStaked);
+    } else if (typeof game.totalStaked === 'number') {
+      totalStakedStr = game.totalStaked.toString();
+      totalStakedInToken = (game.totalStaked / 1e18).toString();
+    } else {
+      // String - try to convert
+      totalStakedStr = game.totalStaked;
+      try {
+        totalStakedInToken = ethers.formatEther(game.totalStaked);
+      } catch (e) {
+        totalStakedInToken = '0';
+      }
+    }
+
     return {
       gameId: gameId,
       roomCode: game.roomCode,
       players: game.players,
       playersCount: game.players.length,
       minPlayers: this.minPlayers,
-      totalStaked: game.totalStaked.toString(),
-      totalStakedInToken: (game.totalStaked / 1000000000000000000).toString(),
+      totalStaked: totalStakedStr,
+      totalStakedInToken: totalStakedInToken,
       status: game.status,
       createdAt: game.createdAt,
       isReady: game.players.length === this.minPlayers
@@ -142,29 +97,47 @@ class StakingService {
         throw new Error(`Game not found in staking service (gameId: ${gameId})`);
       }
 
-      const totalPool = game.totalStaked;
-      const houseCutBps = 200; // 2%
-      const houseCut = Math.floor((totalPool * houseCutBps) / 10000);
+      // Debug logging
+      console.log(`💰 calculateRewards - gameId: ${gameId}`);
+      console.log(`💰 game.totalStaked type: ${typeof game.totalStaked}, value: ${game.totalStaked}`);
+      console.log(`💰 game.players.length: ${game.players.length}`);
+      console.log(`💰 game.players:`, game.players);
+
+      // Use BigInt for all calculations to handle Wei amounts
+      const totalPool = BigInt(game.totalStaked);
+      console.log(`💰 totalPool (as BigInt): ${totalPool.toString()}`);
+
+      const houseCutBps = 200n; // 2%
+      const houseCut = (totalPool * houseCutBps) / 10000n;
       const rewardPool = totalPool - houseCut;
+      console.log(`💰 rewardPool (after 2% cut): ${rewardPool.toString()}`);
 
       // Calculate actual stake per player from the total pool
-      const playerCount = game.players.length;
-      const stakePerPlayer = playerCount > 0 ? Math.floor(totalPool / playerCount) : 0;
+      const playerCount = BigInt(game.players.length);
+      const stakePerPlayer = playerCount > 0n ? totalPool / playerCount : 0n;
 
       const rewards = [];
       const mafiaWon = winners.some((player) => gameRoles[player] === 'Mafia');
 
       if (mafiaWon) {
         const mafiaPlayers = winners.filter((player) => gameRoles[player] === 'Mafia');
-        const mafiaRewardPerPlayer = mafiaPlayers.length > 0 ? Math.floor(rewardPool / mafiaPlayers.length) : 0;
+        const mafiaCount = BigInt(mafiaPlayers.length);
+        const mafiaRewardPerPlayer = mafiaCount > 0n ? rewardPool / mafiaCount : 0n;
 
-        mafiaPlayers.forEach((playerAddress) => {
+        // Calculate remainder from integer division to avoid PayoutMismatch
+        const remainder = mafiaCount > 0n ? rewardPool % mafiaCount : 0n;
+
+        mafiaPlayers.forEach((playerAddress, index) => {
+          // Give remainder to the last winner to ensure exact total
+          const isLastWinner = index === mafiaPlayers.length - 1;
+          const reward = isLastWinner ? mafiaRewardPerPlayer + remainder : mafiaRewardPerPlayer;
+
           rewards.push({
             playerAddress: playerAddress,
             role: 'ASUR',
             stakeAmount: stakePerPlayer.toString(),
-            rewardAmount: mafiaRewardPerPlayer.toString(),
-            totalReceived: mafiaRewardPerPlayer.toString(), // Winner only gets reward, not stake back
+            rewardAmount: reward.toString(),
+            totalReceived: reward.toString(), // Winner only gets reward, not stake back
           });
         });
 
@@ -180,15 +153,23 @@ class StakingService {
       } else {
         const allPlayers = Object.keys(gameRoles);
         const nonMafiaPlayers = allPlayers.filter((player) => gameRoles[player] !== 'Mafia');
-        const nonMafiaRewardPerPlayer = nonMafiaPlayers.length > 0 ? Math.floor(rewardPool / nonMafiaPlayers.length) : 0;
+        const nonMafiaCount = BigInt(nonMafiaPlayers.length);
+        const nonMafiaRewardPerPlayer = nonMafiaCount > 0n ? rewardPool / nonMafiaCount : 0n;
 
-        nonMafiaPlayers.forEach((playerAddress) => {
+        // Calculate remainder from integer division to avoid PayoutMismatch
+        const remainder = nonMafiaCount > 0n ? rewardPool % nonMafiaCount : 0n;
+
+        nonMafiaPlayers.forEach((playerAddress, index) => {
+          // Give remainder to the last winner to ensure exact total
+          const isLastWinner = index === nonMafiaPlayers.length - 1;
+          const reward = isLastWinner ? nonMafiaRewardPerPlayer + remainder : nonMafiaRewardPerPlayer;
+
           rewards.push({
             playerAddress: playerAddress,
             role: gameRoles[playerAddress] === 'Doctor' ? 'DEVA' : gameRoles[playerAddress] === 'Detective' ? 'RISHI' : 'MANAV',
             stakeAmount: stakePerPlayer.toString(),
-            rewardAmount: nonMafiaRewardPerPlayer.toString(),
-            totalReceived: nonMafiaRewardPerPlayer.toString(), // Winner only gets reward, not stake back
+            rewardAmount: reward.toString(),
+            totalReceived: reward.toString(), // Winner only gets reward, not stake back
           });
         });
 
@@ -220,10 +201,25 @@ class StakingService {
 
   async distributeRewards(gameId, rewards, blockchainService = null) {
     try {
+      // IMPORTANT: Filter out players with 0 payouts - only actual winners go to settlement
+      const actualWinners = rewards.rewards.filter((r) => BigInt(r.totalReceived) > 0n);
+
       // Use provided blockchain service (EVMService)
       let txHash;
-      const winners = rewards.rewards.map((r) => r.playerAddress);
-      const payoutAmounts = rewards.rewards.map((r) => BigInt(r.totalReceived));
+      const winners = actualWinners.map((r) => r.playerAddress);
+      const payoutAmounts = actualWinners.map((r) => BigInt(r.totalReceived));
+
+      // Debug logging
+      console.log(`💰 distributeRewards - Summary:`);
+      console.log(`   Game ID: ${gameId}`);
+      console.log(`   Total Pool: ${rewards.totalPool}`);
+      console.log(`   Reward Pool: ${rewards.rewardPool}`);
+      console.log(`   Total players: ${rewards.rewards.length} (filtered to ${winners.length} actual winners)`);
+      console.log(`   Winners count: ${winners.length}`);
+      console.log(`   Payout amounts:`, payoutAmounts.map(p => p.toString()));
+      actualWinners.forEach((r, i) => {
+        console.log(`   Winner ${i+1}: ${r.playerAddress} gets ${r.totalReceived} Wei (${r.role})`);
+      });
 
       if (blockchainService) {
         // Use the provided blockchain service (EVMService)

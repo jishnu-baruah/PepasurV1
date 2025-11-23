@@ -82,43 +82,47 @@ export default function FaucetButton({ walletAddress, onSuccess }: FaucetButtonP
   }
 
   return (
-    <div className="flex flex-col sm:flex-row items-center gap-2 p-2 border border-gray-700 rounded bg-black/40">
-      {/* Title and Info */}
-      <div className="flex-shrink-0">
-        <h3 className="font-press-start text-[10px] text-white">TEST FAUCET</h3>
-        <p className="text-[8px] text-gray-400">Get 0.01 {activeChain.nativeCurrency.symbol}</p>
+    <div className="flex flex-col gap-2 p-2 border border-gray-700 rounded bg-black/40">
+      {/* Top Row: Title, Button, Timer */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Title and Info */}
+        <div className="flex-shrink-0">
+          <h3 className="font-press-start text-[10px] text-white">TEST FAUCET</h3>
+          <p className="text-[8px] text-gray-400">Get 0.01 {activeChain.nativeCurrency.symbol}</p>
+        </div>
+
+        {/* Button */}
+        <Button
+          onClick={handleClaim}
+          disabled={!canClaim || loading}
+          className={`
+            font-press-start text-[10px] px-3 py-1.5 flex-shrink-0
+            ${canClaim && !loading
+              ? 'bg-green-600 hover:bg-green-700 text-white'
+              : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+            }
+          `}
+        >
+          {loading ? 'CLAIMING...' : canClaim ? 'CLAIM' : 'CLAIMED'}
+        </Button>
+
+        {/* Timer or Status */}
+        {!canClaim && timeRemaining && (
+          <p className="text-[10px] text-yellow-400 flex-shrink-0">
+            Next claim: {timeRemaining}
+          </p>
+        )}
       </div>
 
-      {/* Button */}
-      <Button
-        onClick={handleClaim}
-        disabled={!canClaim || loading}
-        className={`
-          font-press-start text-[10px] px-3 py-1.5 flex-shrink-0
-          ${canClaim && !loading
-            ? 'bg-green-600 hover:bg-green-700 text-white'
-            : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-          }
-        `}
-      >
-        {loading ? 'CLAIMING...' : canClaim ? 'CLAIM' : 'CLAIMED'}
-      </Button>
-
-      {/* Timer or Status */}
-      {!canClaim && timeRemaining && (
-        <p className="text-[10px] text-yellow-400 flex-shrink-0">
-          Next claim: {timeRemaining}
-        </p>
-      )}
-
+      {/* Bottom Row: Messages (Full Width) */}
       {message && (
-        <div className="text-[10px] text-green-400 flex-1 truncate">
+        <div className="text-[10px] text-green-400 w-full break-words">
           {message}
         </div>
       )}
 
       {error && (
-        <div className="text-[10px] text-red-400 flex-1 truncate">
+        <div className="text-[10px] text-red-400 w-full break-words">
           {error}
         </div>
       )}

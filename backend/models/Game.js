@@ -34,9 +34,15 @@ const gameSchema = new mongoose.Schema({
     index: true
   },
   stakeAmount: {
-    type: Number,
+    type: String,
     required: true,
-    min: 0
+    validate: {
+      validator: function(v) {
+        // Validate it's a numeric string representing Wei
+        return /^\d+$/.test(v);
+      },
+      message: 'stakeAmount must be a numeric string (Wei)'
+    }
   },
   minPlayers: {
     type: Number,

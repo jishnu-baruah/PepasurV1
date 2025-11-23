@@ -381,7 +381,7 @@ export function useGame(gameId?: string): GameState & GameActions {
     }
   }, [currentGameId, currentPlayer?.address, isConnected, socketJoinGame])
 
-  const createGame = useCallback(async (creatorAddress: string, stakeAmount = 10000000000000000, minPlayers = 4): Promise<{ gameId: string; roomCode: string }> => {
+  const createGame = useCallback(async (creatorAddress: string, stakeAmount?: number, minPlayers?: number): Promise<{ gameId: string; roomCode: string }> => {
     setIsLoading(true)
     setError(null)
 

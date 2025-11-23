@@ -2,6 +2,32 @@ import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { defineChain, http } from 'viem';
 import { celo, celoAlfajores } from 'viem/chains';
 
+// Define Celo Sepolia Testnet chain
+export const celoSepolia = defineChain({
+  id: 11142220,
+  name: 'Celo Sepolia Testnet',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'CELO',
+    symbol: 'CELO',
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://forno.celo-sepolia.celo-testnet.org'],
+    },
+    public: {
+      http: ['https://forno.celo-sepolia.celo-testnet.org'],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'Celo Sepolia Explorer',
+      url: 'https://celo-sepolia.blockscout.com',
+    },
+  },
+  testnet: true,
+});
+
 // Define U2U Mainnet chain
 export const u2uMainnet = defineChain({
   id: 39,
@@ -62,7 +88,7 @@ export const u2uTestnet = defineChain({
  * For application-wide network config, use getNetworkConfig() from networkConfig.ts
  */
 const getWagmiNetworkConfig = () => {
-  const network = process.env.NEXT_PUBLIC_NETWORK || 'u2u-testnet';
+  const network = process.env.NEXT_PUBLIC_NETWORK || 'celoSepolia';
 
   switch (network) {
     case 'u2u':
@@ -81,14 +107,21 @@ const getWagmiNetworkConfig = () => {
         rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || 'https://forno.celo.org',
       };
     case 'celo-alfajores':
+    case 'celoAlfajores':
       return {
         chain: celoAlfajores,
-        rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || 'https://alfajores-forno.celo-testnet.org',
+        rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || 'https://rpc.ankr.com/celo_alfajores',
+      };
+    case 'celoSepolia':
+    case 'celo-sepolia':
+      return {
+        chain: celoSepolia,
+        rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || 'https://forno.celo-sepolia.celo-testnet.org',
       };
     default:
       return {
-        chain: u2uTestnet,
-        rpcUrl: 'https://rpc-nebulas-testnet.u2u.xyz',
+        chain: celoSepolia,
+        rpcUrl: 'https://forno.celo-sepolia.celo-testnet.org',
       };
   }
 };

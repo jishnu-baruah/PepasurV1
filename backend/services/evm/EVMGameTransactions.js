@@ -79,7 +79,7 @@ module.exports = function (evmService) {
          * Settle a game with server-signed winner payouts
          * @param {number} gameId - Game ID to settle
          * @param {string[]} winners - Array of winner addresses
-         * @param {string[]|number[]} payoutAmounts - Array of payout amounts in native token
+         * @param {BigInt[]} payoutAmounts - Array of payout amounts in Wei (already BigInt)
          * @returns {Promise<string>} Transaction hash
          */
         async settleGame(gameId, winners, payoutAmounts) {
@@ -88,10 +88,10 @@ module.exports = function (evmService) {
 
                 const contract = evmService.getContract();
 
-                // Convert payout amounts to Wei
-                const payoutsWei = payoutAmounts.map(amount =>
-                    ethers.parseEther(amount.toString())
-                );
+                // payoutAmounts are ALREADY in Wei (BigInt) - just ensure they're BigInt
+                const payoutsWei = payoutAmounts.map(amount => BigInt(amount));
+
+                console.log(`💰 Payout amounts (Wei):`, payoutsWei.map(p => p.toString()));
 
                 // Generate signature
                 const signature = await evmService.signSettlement(gameId, winners, payoutsWei);

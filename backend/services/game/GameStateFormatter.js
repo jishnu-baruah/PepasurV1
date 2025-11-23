@@ -1,3 +1,5 @@
+const { ethers } = require('ethers');
+
 class GameStateFormatter {
   /**
    * Get public game state (without role information)
@@ -19,8 +21,18 @@ class GameStateFormatter {
     delete publicGame.readyTimer;
 
     // Convert BigInt values to strings for JSON serialization
-    if (publicGame.stakeAmount && typeof publicGame.stakeAmount === 'bigint') {
-      publicGame.stakeAmount = publicGame.stakeAmount.toString();
+    // Also add formatted version for display
+    if (publicGame.stakeAmount) {
+      if (typeof publicGame.stakeAmount === 'bigint') {
+        publicGame.stakeAmount = publicGame.stakeAmount.toString();
+      }
+      // Add human-readable formatted amount (convert from Wei to tokens)
+      try {
+        publicGame.stakeAmountFormatted = ethers.formatEther(publicGame.stakeAmount);
+      } catch (e) {
+        console.warn('Failed to format stake amount:', e.message);
+        publicGame.stakeAmountFormatted = publicGame.stakeAmount;
+      }
     }
 
     // Include contract gameId for blockchain operations
@@ -87,8 +99,18 @@ class GameStateFormatter {
     delete gameState.readyTimer;
 
     // Convert BigInt values to strings for JSON serialization
-    if (gameState.stakeAmount && typeof gameState.stakeAmount === 'bigint') {
-      gameState.stakeAmount = gameState.stakeAmount.toString();
+    // Also add formatted version for display
+    if (gameState.stakeAmount) {
+      if (typeof gameState.stakeAmount === 'bigint') {
+        gameState.stakeAmount = gameState.stakeAmount.toString();
+      }
+      // Add human-readable formatted amount (convert from Wei to tokens)
+      try {
+        gameState.stakeAmountFormatted = ethers.formatEther(gameState.stakeAmount);
+      } catch (e) {
+        console.warn('Failed to format stake amount:', e.message);
+        gameState.stakeAmountFormatted = gameState.stakeAmount;
+      }
     }
 
     return gameState;

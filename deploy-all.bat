@@ -32,7 +32,7 @@ REM Get deployment target
 echo Select deployment target:
 echo 1^) U2U Nebulas Testnet
 echo 2^) U2U Mainnet
-echo 3^) Celo Alfajores Testnet
+echo 3^) Celo Sepolia Testnet
 echo 4^) Celo Mainnet
 echo.
 set /p choice="Enter choice (1-4): "
@@ -53,9 +53,9 @@ if "%choice%"=="1" (
         exit /b 0
     )
 ) else if "%choice%"=="3" (
-    set NETWORK=celoAlfajores
-    set ENV_FILE=celo-testnet
-    set NETWORK_NAME=Celo Alfajores Testnet
+    set NETWORK=celoSepolia
+    set ENV_FILE=celo-sepolia
+    set NETWORK_NAME=Celo Sepolia Testnet
 ) else if "%choice%"=="4" (
     set NETWORK=celo
     set ENV_FILE=celo-mainnet

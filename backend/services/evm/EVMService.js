@@ -64,7 +64,8 @@ class EVMService {
             console.log(`🔑 Server wallet address: ${this.serverWallet.address}`);
 
             // Load contract ABI
-            const contractABI = require('./PepasurABI.json');
+            const contractArtifact = require('./PepasurABI.json');
+            const contractABI = contractArtifact.abi || contractArtifact;
 
             // Initialize contract instance
             this.contract = new ethers.Contract(
@@ -73,9 +74,20 @@ class EVMService {
                 this.serverWallet
             );
 
-            // Verify connection
-            const network = await this.provider.getNetwork();
-            console.log(`🌐 Connected to network: ${this.networkName} (Chain ID: ${network.chainId})`);
+            // Verify connection with timeout
+            try {
+                const networkPromise = this.provider.getNetwork();
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Network query timeout')), 10000)
+                );
+
+                const network = await Promise.race([networkPromise, timeoutPromise]);
+                console.log(`🌐 Connected to network: ${this.networkName} (Chain ID: ${network.chainId})`);
+            } catch (networkError) {
+                console.warn(`⚠️ Network verification failed (${networkError.message}), but contract is initialized`);
+                console.warn(`⚠️ Expected Chain ID: ${this.chainId}`);
+            }
+
             console.log(`📜 Contract address: ${this.contractAddress}`);
 
             this.initialized = true;

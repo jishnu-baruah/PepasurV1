@@ -47,9 +47,18 @@ export default function WalletConnect({ onAddressChange, onJoinGame, onCreateLob
 
             {!isConnected ? (
               <div className="space-y-3 sm:space-y-4">
-                <div className="flex justify-center">
-                  <ConnectButton />
-                </div>
+                <ConnectButton.Custom>
+                  {({ openConnectModal }) => (
+                    <Button
+                      onClick={openConnectModal}
+                      variant="pixel"
+                      size="pixelLarge"
+                      className="w-full text-sm sm:text-base"
+                    >
+                      CONNECT WALLET
+                    </Button>
+                  )}
+                </ConnectButton.Custom>
               </div>
             ) : !isCorrectNetwork ? (
               <div className="space-y-4 sm:space-y-6">

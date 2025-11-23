@@ -336,15 +336,16 @@ export default function Home() {
         <PublicLobbiesScreen
           playerAddress={walletAddress}
           onJoinLobby={async (gameId, roomCode) => {
-            console.log('🎯 onJoinLobby - fetching game state and transitioning to lobby')
+            console.log('🎯 onJoinLobby from public lobbies - fetching game state and transitioning to lobby')
             setIsLoadingGame(true)
-            setCurrentGameId(gameId)
-            setCurrentRoomCode(roomCode)
+            if (gameId) setCurrentGameId(gameId)
+            if (roomCode) setCurrentRoomCode(roomCode)
 
-            // CRITICAL FIX: Fetch game state immediately so currentPlayer gets set
+            // CRITICAL: Fetch game state immediately so currentPlayer gets set
+            // This allows the socket to auto-join (it needs currentPlayer.address)
             try {
-              await refreshGame(gameId, walletAddress) // Pass gameId and walletAddress explicitly
-              console.log('✅ Game state fetched after joining lobby')
+              await refreshGame(gameId, walletAddress)
+              console.log('✅ Game state fetched after joining from public lobbies')
             } catch (error) {
               console.error('❌ Failed to fetch game state after joining:', error)
             }

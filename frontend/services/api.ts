@@ -21,6 +21,7 @@ export interface Game {
   timeLeft: number
   startedAt: number | null
   stakeAmount: string
+  stakeAmountFormatted?: string
   minPlayers: number
   maxPlayers: number
   pendingActions: Record<string, any>
@@ -331,6 +332,34 @@ class ApiService {
         }
       }
     }>('/api/faucet/stats')
+  }
+
+  async fetchDefaults(): Promise<{
+    success: boolean
+    defaults: {
+      nightPhaseDuration: number
+      resolutionPhaseDuration: number
+      taskPhaseDuration: number
+      votingPhaseDuration: number
+      maxTaskCount: number
+      stakeAmount: string
+      minPlayers: number
+      maxPlayers: number
+    }
+  }> {
+    return this.request<{
+      success: boolean
+      defaults: {
+        nightPhaseDuration: number
+        resolutionPhaseDuration: number
+        taskPhaseDuration: number
+        votingPhaseDuration: number
+        maxTaskCount: number
+        stakeAmount: string
+        minPlayers: number
+        maxPlayers: number
+      }
+    }>('/api/game/defaults')
   }
 }
 

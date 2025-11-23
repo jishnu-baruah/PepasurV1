@@ -19,7 +19,8 @@ import { clearGameSession } from "@/utils/sessionPersistence"
 import { canLeaveGame } from "@/utils/connectivityChecker"
 import FullscreenToggle from "@/components/common/fullscreen-toggle"
 import ColoredPlayerName from "@/components/game/colored-player-name"
-import LobbySettingsDialog, { FullGameSettings, DEFAULT_GAME_SETTINGS } from "@/components/game/lobby-settings-dialog"
+import LobbySettingsDialog, { FullGameSettings, FALLBACK_GAME_SETTINGS } from "@/components/game/lobby-settings-dialog"
+import { useGameDefaults } from "@/hooks/useGameDefaults"
 import FaucetButton from "@/components/wallet/faucet-button"
 import { GameSettings } from "@/services/api"
 import { activeChain } from "@/lib/wagmi"
@@ -43,7 +44,8 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
   const [copied, setCopied] = useState(false)
   const [leaveMethod, setLeaveMethod] = useState<'normal' | 'force_local' | null>(null)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
-  const [gameSettings, setGameSettings] = useState<FullGameSettings>(DEFAULT_GAME_SETTINGS)
+  const { defaults: backendDefaults, isLoading: defaultsLoading } = useGameDefaults()
+  const [gameSettings, setGameSettings] = useState<FullGameSettings>(FALLBACK_GAME_SETTINGS)
 
   // Debug player updates
   useEffect(() => {
@@ -83,21 +85,28 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
     }
   }, [game?.timeLeft])
 
+  // Update game settings when backend defaults are loaded
+  useEffect(() => {
+    if (backendDefaults && !defaultsLoading) {
+      setGameSettings(backendDefaults)
+    }
+  }, [backendDefaults, defaultsLoading])
+
   // Initialize isPublic and settings from game data
   useEffect(() => {
     if (game) {
       setIsPublic(game.isPublic || false)
       if (game.settings) {
         setGameSettings({
-          nightPhaseDuration: game.settings.nightPhaseDuration || 30,
-          resolutionPhaseDuration: game.settings.resolutionPhaseDuration || 10,
-          taskPhaseDuration: game.settings.taskPhaseDuration || 30,
-          votingPhaseDuration: game.settings.votingPhaseDuration || 10,
-          maxTaskCount: game.settings.maxTaskCount || 4,
+          nightPhaseDuration: game.settings.nightPhaseDuration || backendDefaults?.nightPhaseDuration || 30,
+          resolutionPhaseDuration: game.settings.resolutionPhaseDuration || backendDefaults?.resolutionPhaseDuration || 10,
+          taskPhaseDuration: game.settings.taskPhaseDuration || backendDefaults?.taskPhaseDuration || 30,
+          votingPhaseDuration: game.settings.votingPhaseDuration || backendDefaults?.votingPhaseDuration || 10,
+          maxTaskCount: game.settings.maxTaskCount || backendDefaults?.maxTaskCount || 4,
         })
       }
     }
-  }, [game])
+  }, [game, backendDefaults])
 
 
 
@@ -317,15 +326,15 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
         </div>
 
         {/* Room Code Card */}
-        <Card className="p-2 sm:p-3 lg:p-4 bg-card border-2 border-border">
+        <Card className="p-2 sm:p-3 lg:p-4 bg-[#111111]/90 backdrop-blur-sm border-2 border-[#4A8C4A]">
           <div className="space-y-2">
             {/* Room Code Display */}
             <div className="text-center space-y-2">
-              <div className="text-xs sm:text-sm font-press-start text-white pixel-text-3d-glow">
+              <div className="text-xs sm:text-sm font-press-start pixel-text-3d-green">
                 ROOM CODE
               </div>
 
-              <div className="text-2xl sm:text-3xl lg:text-4xl font-press-start text-blue-400 pixel-text-3d-glow tracking-widest">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-press-start pixel-text-3d-green tracking-widest">
                 {game?.roomCode || 'LOADING...'}
               </div>
 
@@ -346,11 +355,11 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
 
             {/* Visibility Toggle - Only for Creator */}
             {isCreator && (
-              <div className="flex items-center justify-center gap-2 pt-2 border-t border-[#2a2a2a]">
+              <div className="flex items-center justify-center gap-2 pt-2 border-t border-[#4A8C4A]/30">
                 <span className="text-xs font-press-start text-gray-300">VISIBILITY:</span>
                 <Button
                   onClick={handleToggleVisibility}
-                  variant={isPublic ? 'pixel' : 'outline'}
+                  variant={isPublic ? 'pixel' : 'pixelOutline'}
                   size="pixel"
                   className="text-xs"
                   disabled={isTogglingVisibility}
@@ -362,7 +371,7 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
 
             {/* Visibility Status - For Non-Creators */}
             {!isCreator && (
-              <div className="text-center pt-2 border-t border-[#2a2a2a]">
+              <div className="text-center pt-2 border-t border-[#4A8C4A]/30">
                 <span className="text-xs font-press-start text-gray-400">
                   {isPublic ? '🌐 PUBLIC LOBBY' : '🔒 PRIVATE LOBBY'}
                 </span>
@@ -382,9 +391,9 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
         </div>
 
         {/* Game Status */}
-        <Card className="p-2 sm:p-3 lg:p-4 bg-card border-2 border-border text-center">
+        <Card className="p-2 sm:p-3 lg:p-4 bg-[#111111]/90 backdrop-blur-sm border-2 border-[#4A8C4A] text-center">
           <div className="space-y-1 sm:space-y-2">
-            <div className="text-sm sm:text-base lg:text-lg font-press-start pixel-text-3d-white">
+            <div className="text-sm sm:text-base lg:text-lg font-press-start pixel-text-3d-green">
               WAITING FOR PLAYERS...
             </div>
             <div className="text-xs sm:text-sm font-press-start pixel-text-3d-white">
@@ -409,7 +418,7 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
                 key={index}
                 className={`p-2 sm:p-3 text-center transition-all duration-300 ${isEmpty
                   ? 'bg-[#111111]/50 border border-[#2a2a2a] opacity-50'
-                  : 'bg-card border-2 border-border hover:border-primary/50'
+                  : 'bg-[#111111]/90 backdrop-blur-sm border-2 border-[#4A8C4A] hover:border-[#4A8C4A]/80'
                   }`}
               >
                 <div className="space-y-1 sm:space-y-2">
@@ -493,9 +502,9 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
 
         {/* Leave Game Confirmation Dialog */}
         <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
-          <DialogContent className="bg-card border-2 border-border">
+          <DialogContent className="bg-[#111111]/90 backdrop-blur-sm border-2 border-[#4A8C4A]">
             <DialogHeader>
-              <DialogTitle className="font-press-start text-lg pixel-text-3d-white text-center">
+              <DialogTitle className="font-press-start text-lg pixel-text-3d-green text-center">
                 ⚠️ LEAVE GAME?
               </DialogTitle>
             </DialogHeader>
@@ -549,8 +558,8 @@ export default function LobbyScreen({ players, game, isConnected, onStartGame, p
         </Dialog>
 
         {/* Instructions */}
-        <Card className="p-3 sm:p-4 bg-[#111111]/50 border border-[#2a2a2a]">
-          <div className="text-xs sm:text-sm font-press-start pixel-text-3d-white text-center space-y-1">
+        <Card className="p-3 sm:p-4 bg-[#111111]/90 backdrop-blur-sm border-2 border-[#4A8C4A]/50">
+          <div className="text-xs sm:text-sm font-press-start text-gray-300 text-center space-y-1">
             <div>🎮 Share the room code with friends to join</div>
             <div>⚡ Game starts automatically when {game?.minPlayers || 4} players join</div>
             <div>🔍 Each player gets a unique role (ASUR, DEVA, RISHI, MANAV)</div>

@@ -115,7 +115,7 @@ class StakingManager {
             this.stakingService.stakedGames.set(contractGameId, {
                 roomCode: game.roomCode,
                 players: [],
-                totalStaked: 0,
+                totalStaked: 0n,  // Initialize as BigInt to match stake amounts
                 status: 'waiting',
                 createdAt: game.createdAt || Date.now()
             });
@@ -124,10 +124,53 @@ class StakingManager {
         // Add player to StakingService game if it exists
         if (contractGameId && this.stakingService.stakedGames.has(contractGameId)) {
             const stakingGame = this.stakingService.stakedGames.get(contractGameId);
-            if (!stakingGame.players.includes(playerAddress)) {
-                stakingGame.players.push(playerAddress);
-                stakingGame.totalStaked += game.stakeAmount;
-                console.log(`💰 Added player ${playerAddress} to StakingService game ${contractGameId}`);
+
+            // TYPE GUARD: Ensure game.stakeAmount is a valid Wei string or number
+            // game.stakeAmount should be in Wei (string from ethers.parseEther)
+            let stakeAmountWei;
+            if (typeof game.stakeAmount === 'string') {
+                // Already a Wei string - convert directly to BigInt
+                stakeAmountWei = BigInt(game.stakeAmount);
+            } else if (typeof game.stakeAmount === 'number') {
+                // Number (possibly from MongoDB) - convert to BigInt
+                // Note: If this is a small number like 0.001, it's WRONG - should be Wei
+                console.warn(`⚠️ game.stakeAmount is a Number (${game.stakeAmount}), expected Wei string`);
+                stakeAmountWei = BigInt(Math.floor(game.stakeAmount));
+            } else if (typeof game.stakeAmount === 'bigint') {
+                // Already BigInt
+                stakeAmountWei = game.stakeAmount;
+            } else {
+                throw new Error(`Invalid stakeAmount type: ${typeof game.stakeAmount}`);
+            }
+
+            if (!stakingGame.players.includes(addressString)) {
+                stakingGame.players.push(addressString);
+
+                // TYPE GUARD: Ensure totalStaked is BigInt before addition
+                if (typeof stakingGame.totalStaked !== 'bigint') {
+                    // Convert to BigInt if it's Number or string
+                    stakingGame.totalStaked = typeof stakingGame.totalStaked === 'number'
+                        ? BigInt(Math.floor(stakingGame.totalStaked))
+                        : BigInt(stakingGame.totalStaked || 0);
+                }
+
+                stakingGame.totalStaked += stakeAmountWei;
+                console.log(`💰 Added player ${addressString} to StakingService game ${contractGameId}`);
+                console.log(`💰 Stake amount: ${stakeAmountWei.toString()} Wei`);
+            }
+
+            // CRITICAL: Also add to playerStakes for reward calculation
+            const stakeKey = `${contractGameId}-${addressString}`;
+            if (!this.stakingService.playerStakes.has(stakeKey)) {
+                this.stakingService.playerStakes.set(stakeKey, {
+                    gameId: contractGameId,
+                    playerAddress: addressString,
+                    amount: stakeAmountWei,  // Store as BigInt
+                    txHash: transactionHash,
+                    timestamp: Date.now(),
+                    status: 'staked'
+                });
+                console.log(`💰 Recorded individual stake for ${addressString} in StakingService: ${stakeAmountWei.toString()} Wei`);
             }
         }
 

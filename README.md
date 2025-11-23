@@ -104,106 +104,17 @@ pepasur/
 
 ## 🚀 Quick Start
 
-### Prerequisites
+Ready to get started? Follow our comprehensive setup guide:
 
-- **Node.js v18+**: JavaScript runtime for backend and frontend
-- **EVM Wallet**: Browser extension (MetaMask, Coinbase Wallet, or WalletConnect-compatible wallet)
-- **Native Tokens**: U2U or CELO tokens for staking (testnet tokens available from faucets)
-- **Hardhat**: For smart contract deployment (installed via npm)
+**👉 [Quick Start Guide](./docs/QUICK_START.md)**
 
-### Deployment Order
+### TL;DR Setup
+1. **Deploy Contracts** → `cd contract && npm run deploy`
+2. **Start Backend** → `cd backend && npm run dev` 
+3. **Start Frontend** → `cd frontend && npm run dev`
+4. **Play Game** → Connect wallet, stake tokens, and enjoy!
 
-The project components must be deployed in the following order:
-
-1. **Smart Contracts** → Deploy Move modules to Aptos blockchain
-2. **Backend Server** → Configure with contract addresses and start game server
-3. **Frontend Application** → Configure with contract and API endpoints
-
-### Setup Overview
-
-```bash
-# 1. Deploy Smart Contracts
-cd contract
-npm install
-npx hardhat compile
-npx hardhat run scripts/deploy.js --network u2u
-# Note the deployed contract address
-
-# 2. Initialize Contract
-npx hardhat run scripts/initialize.js --network u2u
-
-# 3. Start Backend Server
-cd ../backend
-npm install
-# Configure .env with contract address and network settings
-npm run dev
-
-# 4. Start Frontend Application
-cd ../frontend
-npm install
-# Configure .env.local with contract address and network settings
-npm run dev
-```
-
-For detailed setup instructions, see the README files in each directory:
-- **Smart Contracts**: [contract/README.md](./contract/README.md)
-- **Backend**: [backend/README.md](./backend/README.md)
-- **Frontend**: [frontend/README.md](./frontend/README.md)
-
----
-
-## 🎮 How to Play
-
-### Game Roles
-
-- **ASUR (Mafia)**: Eliminate other players during night phase to win
-- **DEV (Doctor)**: Protect one player each night from elimination
-- **MANAV (Villager)**: Vote during day phase to identify and eliminate Mafia
-- **RISHI (Detective)**: Investigate players to discover their roles
-
-### 1. Get Native Tokens
-
-The game runs on **U2U Network** and **Celo Network**. For testing:
-- **U2U Testnet**: Get testnet U2U tokens from the U2U faucet
-- **Celo Sepolia**: Get testnet CELO from [Celo Faucet](https://faucet.celo.org/alfajores)
-
-For mainnet, acquire U2U or CELO tokens from exchanges or DEXs.
-
-### 2. Create or Join a Game
-
-- **Create Room**: Stake native tokens (U2U or CELO) to create a new game lobby with customizable settings
-- **Join Room**: Enter a room code and stake the required amount to join an existing game
-
-### 3. Play the Game
-
-**Night Phase**: 
-- ASUR players choose a target to eliminate
-- DEV protects one player from elimination
-- RISHI investigates a player to learn their role
-
-**Task Phase**: 
-- Complete mini-games to earn bonus rewards
-- Tasks test reaction time and problem-solving skills
-
-**Voting Phase**: 
-- All players vote to eliminate a suspected ASUR
-- Player with most votes is eliminated from the game
-
-**Resolution**: 
-- Game continues until either all ASUR are eliminated or ASUR equal remaining players
-
-### 4. Win Rewards
-
-**Victory Conditions:**
-- **Mafia Wins**: When ASUR players equal or outnumber remaining players
-- **Non-Mafia Wins**: When all ASUR players are eliminated
-
-**Reward Distribution:**
-- **Mafia Victory**: Mafia players split the entire reward pool
-- **Non-Mafia Victory**: All surviving non-Mafia players split the reward pool equally
-- **House Cut**: 2% platform fee for maintenance and development
-
-All rewards are distributed automatically through smart contracts and can be withdrawn immediately after game completion.
+For detailed instructions, network configuration, and gameplay guide, see the [complete quick start documentation](./docs/QUICK_START.md).
 
 ---
 
@@ -269,6 +180,27 @@ For detailed contract documentation, deployment instructions, and security consi
 - **Role Secrecy**: Player roles never stored on-chain, maintained off-chain by backend
 - **Access Control**: Admin-only functions for critical operations
 - **House Cut Limits**: Maximum 20% house fee enforced at contract level
+
+---
+
+## 📚 Documentation
+
+For detailed technical documentation, deployment guides, and troubleshooting:
+
+### 📖 Main Documentation
+- **[docs/](./docs/)** - Complete technical documentation and guides
+- **[docs/README.md](./docs/README.md)** - Documentation index and navigation
+
+### 🚀 Quick Access
+- **[Quick Start Guide](./docs/QUICK_START.md)** - ⭐ **New users start here!**
+- **[Celo Sepolia Deployment](./docs/CELO_SEPOLIA_DEPLOYMENT.md)** - Complete deployment guide
+- **[Migration Guide](./docs/MIGRATION_GUIDE.md)** - Network migration instructions  
+- **[Troubleshooting](./docs/RPC_TIMEOUT_TROUBLESHOOTING.md)** - Common issues and solutions
+
+### 📋 Component Documentation
+- **[Backend API](./backend/README.md)** - Server setup and API documentation
+- **[Frontend App](./frontend/README.md)** - UI setup and configuration
+- **[Smart Contracts](./contract/README.md)** - Contract deployment and usage
 
 ---
 

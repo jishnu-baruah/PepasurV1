@@ -41,7 +41,7 @@ const PlayerResultRow = ({ player, isWinner, isEliminated, reward, game }: {
   }
 
   // Calculate token reward/penalty (using native token symbol)
-  const tokenAmount = parseFloat(reward?.rewardInAPT || 0)
+  const tokenAmount = parseFloat(reward?.rewardInToken || 0)
   const tokenDisplay = tokenAmount > 0 ? `+${tokenAmount.toFixed(4)}` : tokenAmount < 0 ? `${tokenAmount.toFixed(4)}` : '+0.0000'
 
   return (
@@ -240,7 +240,7 @@ export default function GameResultsScreen({ game, players, currentPlayer, onNewG
             if (!currentPlayerReward) return null;
 
             // Only show withdraw for players with rewards > 0
-            const hasRewards = parseFloat(currentPlayerReward.rewardInAPT) > 0;
+            const hasRewards = parseFloat(currentPlayerReward.rewardInToken) > 0;
 
             if (!hasRewards) return null;
 
@@ -250,7 +250,7 @@ export default function GameResultsScreen({ game, players, currentPlayer, onNewG
                   gameId={game.gameId}
                   playerAddress={currentPlayer.address}
                   rewardAmount={currentPlayerReward.rewardAmount}
-                  rewardInAPT={currentPlayerReward.rewardInAPT}
+                  rewardInToken={currentPlayerReward.rewardInToken}
                   settlementTxHash={game.rewards.settlementTxHash}
                 />
               </div>

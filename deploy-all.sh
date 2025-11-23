@@ -54,7 +54,7 @@ echo ""
 print_info "Select deployment target:"
 echo "1) U2U Nebulas Testnet"
 echo "2) U2U Mainnet"
-echo "3) Celo Alfajores Testnet"
+echo "3) Celo Sepolia Testnet"
 echo "4) Celo Mainnet"
 read -p "Enter choice (1-4): " choice
 
@@ -76,9 +76,9 @@ case $choice in
         fi
         ;;
     3)
-        NETWORK="celoAlfajores"
-        ENV_FILE="celo-testnet"
-        NETWORK_NAME="Celo Alfajores Testnet"
+        NETWORK="celoSepolia"
+        ENV_FILE="celo-sepolia"
+        NETWORK_NAME="Celo Sepolia Testnet"
         ;;
     4)
         NETWORK="celo"

@@ -11,7 +11,7 @@ interface WithdrawRewardsProps {
   gameId: string
   playerAddress: string
   rewardAmount: string
-  rewardInAPT: string
+  rewardInToken: string
   onWithdrawSuccess?: (transactionHash: string) => void
   renderButton?: boolean
   settlementTxHash?: string
@@ -21,7 +21,7 @@ export default function WithdrawRewards({
   gameId,
   playerAddress,
   rewardAmount,
-  rewardInAPT,
+  rewardInToken,
   onWithdrawSuccess,
   renderButton = true,
   settlementTxHash
@@ -126,7 +126,7 @@ export default function WithdrawRewards({
           {/* Amount */}
           <div className="text-xs font-press-start">
             <span className="text-blue-300">Amount: </span>
-            <span className="text-white font-bold">{rewardInAPT} {activeChain.nativeCurrency.symbol}</span>
+            <span className="text-white font-bold">{rewardInToken} {activeChain.nativeCurrency.symbol}</span>
           </div>
         </div>
       </Card>
@@ -156,7 +156,7 @@ export default function WithdrawRewards({
         {/* Amount */}
         <div className="text-xs font-press-start mb-4">
           <span className="text-blue-300">Amount: </span>
-          <span className="text-white font-bold">{rewardInAPT} {activeChain.nativeCurrency.symbol}</span>
+          <span className="text-white font-bold">{rewardInToken} {activeChain.nativeCurrency.symbol}</span>
         </div>
 
         <Button
@@ -172,7 +172,7 @@ export default function WithdrawRewards({
               <span>{isPending ? 'CONFIRM IN WALLET...' : 'WITHDRAWING...'}</span>
             </div>
           ) : (
-            `💰 WITHDRAW ${rewardInAPT} ${activeChain.nativeCurrency.symbol}`
+            `💰 WITHDRAW ${rewardInToken} ${activeChain.nativeCurrency.symbol}`
           )}
         </Button>
 

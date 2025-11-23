@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,13 +23,17 @@ export interface FullGameSettings {
   isPublic?: boolean              // lobby visibility
 }
 
-export const DEFAULT_GAME_SETTINGS: FullGameSettings = {
+// Fallback settings if backend is unavailable
+export const FALLBACK_GAME_SETTINGS: FullGameSettings = {
   nightPhaseDuration: 30,
   resolutionPhaseDuration: 10,
   taskPhaseDuration: 30,
   votingPhaseDuration: 10,
   maxTaskCount: 4,
 }
+
+// This will be populated from backend
+export let DEFAULT_GAME_SETTINGS: FullGameSettings = FALLBACK_GAME_SETTINGS
 
 export { type GameSettings }
 
@@ -49,6 +53,11 @@ export default function LobbySettingsDialog({
   onSave,
 }: LobbySettingsDialogProps) {
   const [localSettings, setLocalSettings] = useState<FullGameSettings>(settings)
+
+  // Update local settings when the settings prop changes (e.g., when backend defaults are loaded)
+  useEffect(() => {
+    setLocalSettings(settings)
+  }, [settings])
 
   const handleChange = (key: keyof FullGameSettings, value: number) => {
     setLocalSettings(prev => ({
@@ -101,7 +110,7 @@ export default function LobbySettingsDialog({
   }
 
   const handleReset = () => {
-    setLocalSettings(DEFAULT_GAME_SETTINGS)
+    setLocalSettings(settings) // Reset to the current defaults passed from parent
   }
 
   return (

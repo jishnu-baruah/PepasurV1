@@ -10,7 +10,8 @@ import RetroAnimation from "@/components/common/retro-animation"
 import { useWalletContext } from "@/contexts/WalletContext"
 import { useJoinGame } from "@/hooks/useGameContract"
 import { formatEther, parseEther } from "viem"
-import LobbySettingsDialog, { FullGameSettings, DEFAULT_GAME_SETTINGS } from "@/components/game/lobby-settings-dialog"
+import LobbySettingsDialog, { FullGameSettings, FALLBACK_GAME_SETTINGS } from "@/components/game/lobby-settings-dialog"
+import { useGameDefaults } from "@/hooks/useGameDefaults"
 import FaucetButton from "@/components/wallet/faucet-button"
 import { activeChain } from "@/lib/wagmi"
 
@@ -55,10 +56,31 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
   const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(true)
 
-  const [stakeAmountInput, setStakeAmountInput] = useState('0.001');
+  const [stakeAmountInput, setStakeAmountInput] = useState('0.001'); // Will be updated from backend
   const [isPublic, setIsPublic] = useState(false);
-  const [gameSettings, setGameSettings] = useState<FullGameSettings>(DEFAULT_GAME_SETTINGS);
+  const { defaults: backendDefaults, isLoading: defaultsLoading, stakeAmountDefault } = useGameDefaults()
+  const [gameSettings, setGameSettings] = useState<FullGameSettings>(FALLBACK_GAME_SETTINGS);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+
+  // Update game settings when backend defaults are loaded
+  useEffect(() => {
+    if (backendDefaults && !defaultsLoading) {
+      console.log('🔧 Updating gameSettings with backend defaults:', backendDefaults)
+      setGameSettings(backendDefaults)
+    }
+  }, [backendDefaults, defaultsLoading])
+
+  // Update stake amount input when backend defaults are loaded
+  useEffect(() => {
+    if (stakeAmountDefault && !defaultsLoading) {
+      // Convert Wei to token units for display (1 token = 10^18 Wei)
+      const stakeInTokens = parseFloat(formatEther(stakeAmountDefault))
+      console.log('🔧 Backend stakeAmountDefault (Wei):', stakeAmountDefault)
+      console.log('🔧 Converted to tokens:', stakeInTokens)
+      console.log('🔧 Setting stakeAmountInput to:', stakeInTokens.toString())
+      setStakeAmountInput(stakeInTokens.toString())
+    }
+  }, [stakeAmountDefault, defaultsLoading])
 
   // Update room code when initialRoomCode changes (e.g., from public lobbies)
   useEffect(() => {
@@ -265,7 +287,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               creatorAddress: playerAddress,
-              stakeAmount: parseEther(stakeAmount).toString(), // Convert to Wei string
+              stakeAmount: parseFloat(stakeAmount), // Send as number in token units (e.g., 0.001)
               minPlayers: 4, // Use default minPlayers (not customizable)
               isPublic: isPublic,
               settings: gameSettings // Pass custom game settings (phase durations only)
@@ -388,7 +410,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
 
   return (
     <div className="min-h-screen flex items-center justify-center p-2 sm:p-4 gaming-bg scanlines">
-      <Card className="w-[90vw] max-w-[480px] p-3 sm:p-4 lg:p-6 bg-[#111111]/80 border border-[#2a2a2a]">
+      <Card className="w-[90vw] max-w-[480px] p-3 sm:p-4 lg:p-6 bg-[#111111]/90 backdrop-blur-sm border-2 border-[#2a2a2a]">
         <div className="space-y-3 sm:space-y-4 lg:space-y-6">
           {/* Header */}
           <div className="text-center space-y-1 sm:space-y-2">
@@ -404,7 +426,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
             {/* Balance Info */}
             {balanceInfo && (
-              <div className="p-2 sm:p-3 lg:p-4 bg-[#1a1a1a]/50 border border-[#333333] rounded-lg">
+              <div className="p-2 sm:p-3 lg:p-4 bg-[#1a1a1a]/50 border-2 border-[#2a2a2a] rounded-lg">
                 <div className="space-y-1 sm:space-y-2">
                   <div className="text-xs sm:text-sm font-press-start text-gray-300">YOUR BALANCE</div>
                   <div className="text-base sm:text-lg font-bold text-white break-all">
@@ -418,7 +440,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
             )}
 
             {/* Network Info */}
-            <div className="p-2 sm:p-3 lg:p-4 bg-[#1a1a1a]/50 border border-[#333333] rounded-lg">
+            <div className="p-2 sm:p-3 lg:p-4 bg-[#1a1a1a]/50 border-2 border-[#2a2a2a] rounded-lg">
               <div className="space-y-1 sm:space-y-2">
                 <div className="text-xs sm:text-sm font-press-start text-gray-300">NETWORK</div>
                 <div className="text-base sm:text-lg font-bold text-white break-words">
@@ -453,7 +475,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
           {/* Public/Private Toggle and Settings - Only show for create mode */}
           {mode === 'create' && (
             <>
-              <Card className="p-2 sm:p-3 bg-[#1a1a1a]/50 border border-[#333333]">
+              <Card className="p-2 sm:p-3 bg-[#1a1a1a]/50 border-2 border-[#2a2a2a]">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs sm:text-sm font-press-start text-gray-300">ROOM VISIBILITY</div>
@@ -463,7 +485,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
                   </div>
                   <Button
                     onClick={() => setIsPublic(!isPublic)}
-                    variant={isPublic ? 'pixel' : 'outline'}
+                    variant={isPublic ? 'pixel' : 'pixelOutline'}
                     size="pixel"
                     className="text-xs"
                   >
@@ -473,7 +495,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
               </Card>
 
               {/* Game Settings Button */}
-              <Card className="p-2 sm:p-3 bg-[#1a1a1a]/50 border border-[#333333]">
+              <Card className="p-2 sm:p-3 bg-[#1a1a1a]/50 border-2 border-[#2a2a2a]">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs sm:text-sm font-press-start text-gray-300">GAME SETTINGS</div>
@@ -483,11 +505,12 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
                   </div>
                   <Button
                     onClick={() => setShowSettingsDialog(true)}
-                    variant="outline"
+                    variant="pixelOutline"
                     size="pixel"
                     className="text-xs"
+                    disabled={defaultsLoading}
                   >
-                    ⚙️ CONFIGURE
+                    {defaultsLoading ? '⏳ LOADING...' : '⚙️ CONFIGURE'}
                   </Button>
                 </div>
               </Card>
@@ -538,7 +561,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
           {mode === 'join' && (
             <>
               {/* Group 1: Join with Room Code */}
-              <div className="space-y-2 p-4 border border-border rounded-lg">
+              <div className="space-y-2 p-4 border-2 border-[#2a2a2a] rounded-lg bg-[#1a1a1a]/30">
                 <Input
                   id="roomCode"
                   type="text"
@@ -546,7 +569,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
                   onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
                   placeholder="Enter 6-char room code"
                   maxLength={6}
-                  className="w-full font-press-start text-left text-lg tracking-widest p-4 bg-black/50 border-2 border-border focus:border-primary focus:ring-primary"
+                  className="w-full font-press-start text-left text-lg tracking-widest p-4 bg-black/50 border-2 border-[#2a2a2a] focus:border-primary focus:ring-primary"
                 />
                 <Button
                   onClick={handleStake}
@@ -568,9 +591,9 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
 
               {/* Separator */}
               <div className="flex items-center">
-                <div className="flex-grow border-t border-border"></div>
-                <span className="flex-shrink mx-4 text-xs text-gray-500">OR</span>
-                <div className="flex-grow border-t border-border"></div>
+                <div className="flex-grow border-t border-[#2a2a2a]"></div>
+                <span className="flex-shrink mx-4 text-xs text-gray-500 font-press-start">OR</span>
+                <div className="flex-grow border-t border-[#2a2a2a]"></div>
               </div>
 
               {/* Group 2: Browse Public Lobbies */}
@@ -578,7 +601,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
                 <div>
                   <Button
                     onClick={onBrowsePublicLobbies}
-                    variant="outline"
+                    variant="pixelOutline"
                     size="pixelLarge"
                     className="w-full"
                   >
@@ -591,7 +614,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
 
           {/* Error Message */}
           {error && (
-            <Card className="p-2 sm:p-3 bg-red-900/20 border border-red-500/50">
+            <Card className="p-2 sm:p-3 bg-red-900/20 border-2 border-red-500/50">
               <div className="text-xs sm:text-sm text-red-400 font-press-start">
                 ❌ {error}
               </div>
@@ -600,7 +623,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
 
           {/* Staking Info */}
           {stakingInfo && (
-            <Card className="p-2 sm:p-3 lg:p-4 bg-[#1a1a1a]/50 border border-[#333333]">
+            <Card className="p-2 sm:p-3 lg:p-4 bg-[#1a1a1a]/50 border-2 border-[#2a2a2a]">
               <div className="space-y-1 sm:space-y-2">
                 <div className="text-xs sm:text-sm font-press-start text-gray-300">GAME STATUS</div>
                 <div className={`text-base sm:text-lg font-bold font-press-start ${getStakingStatusColor(stakingInfo.status)}`}>
@@ -639,7 +662,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
 
             <Button
               onClick={onCancel}
-              variant="outline"
+              variant="pixelOutline"
               size="pixelLarge"
               className="w-full"
             >
@@ -658,6 +681,7 @@ export default function StakingScreen({ gameId, playerAddress, onStakeSuccess, o
 
         {/* Settings Dialog */}
         <LobbySettingsDialog
+          key={JSON.stringify(gameSettings)} // Force re-render when settings change
           open={showSettingsDialog}
           onOpenChange={setShowSettingsDialog}
           settings={gameSettings}

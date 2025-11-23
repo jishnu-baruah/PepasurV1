@@ -13,17 +13,17 @@ export interface WinProbabilities {
 }
 
 export function calculateWinProbabilities(
-  stakeAmount: bigint | number | string, // in Wei or as a number/string
+  stakeAmount: bigint | string, // Wei as BigInt or Wei string (NOT token units)
   playerCount: number,
-  minPlayers: number = 4
+  minPlayers?: number
 ): WinProbabilities {
   // Convert stakeAmount to bigint if it's not already
+  // IMPORTANT: If string, it's assumed to be Wei string, not token units
   const stakeAmountBigInt = typeof stakeAmount === 'bigint'
     ? stakeAmount
-    : typeof stakeAmount === 'string'
-      ? parseEther(stakeAmount)
-      : BigInt(stakeAmount);
+    : BigInt(stakeAmount); // Convert Wei string to BigInt directly
 
+  const effectiveMinPlayers = minPlayers || 4
   const totalPot = stakeAmountBigInt * BigInt(playerCount);
   const netPot = (totalPot * BigInt(98)) / BigInt(100); // After 2% house cut
 

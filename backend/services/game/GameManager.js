@@ -51,12 +51,22 @@ class GameManager {
     const gameId = uuidv4();
     const roomCode = this.gameRepository.generateRoomCode();
 
+    // TYPE GUARD: Ensure stakeAmount is always a Wei string
+    if (stakeAmount !== null && stakeAmount !== undefined) {
+      if (typeof stakeAmount === 'number' || typeof stakeAmount === 'bigint') {
+        stakeAmount = stakeAmount.toString();
+      } else if (typeof stakeAmount !== 'string') {
+        throw new Error(`stakeAmount must be a string (Wei), got ${typeof stakeAmount}`);
+      }
+    }
+
     // Default settings if not provided (phase durations only)
     const defaultSettings = {
-      nightPhaseDuration: 30,
-      resolutionPhaseDuration: 10,
-      taskPhaseDuration: 30,
-      votingPhaseDuration: 10
+      nightPhaseDuration: parseInt(process.env.DEFAULT_NIGHT_PHASE_DURATION) || 30,
+      resolutionPhaseDuration: parseInt(process.env.DEFAULT_RESOLUTION_PHASE_DURATION) || 10,
+      taskPhaseDuration: parseInt(process.env.DEFAULT_TASK_PHASE_DURATION) || 30,
+      votingPhaseDuration: parseInt(process.env.DEFAULT_VOTING_PHASE_DURATION) || 10,
+      maxTaskCount: parseInt(process.env.DEFAULT_MAX_TASK_COUNT) || 4
     };
 
     const game = {
@@ -69,7 +79,7 @@ class GameManager {
       day: 1,
       timeLeft: 0,
       startedAt: null,
-      stakeAmount: stakeAmount || 1000000000000000000, // 1 token (in Wei)
+      stakeAmount: stakeAmount || process.env.DEFAULT_STAKE_AMOUNT || '1000000000000000000', // Use env var or fallback
       minPlayers: minPlayers || parseInt(process.env.DEFAULT_MIN_PLAYERS) || 4,
       maxPlayers: parseInt(process.env.DEFAULT_MAX_PLAYERS) || 10,
       pendingActions: {}, // address -> { commit, revealed }

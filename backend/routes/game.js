@@ -1,9 +1,77 @@
 const express = require('express');
+const { ethers } = require('ethers');
 const GameStateFormatter = require('../services/game/GameStateFormatter');
 
 module.exports = (gameManagerInstance, evmService) => {
   const router = express.Router();
   const gameManager = gameManagerInstance; // Use the passed instance
+
+  /**
+   * @swagger
+   * /api/game/defaults:
+   *   get:
+   *     summary: Get default game settings
+   *     description: Returns the default game configuration values from environment variables.
+   *     tags:
+   *       - Game
+   *     responses:
+   *       200:
+   *         description: Default game settings retrieved successfully.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 nightPhaseDuration:
+   *                   type: number
+   *                   description: Default night phase duration in seconds
+   *                 resolutionPhaseDuration:
+   *                   type: number
+   *                   description: Default resolution phase duration in seconds
+   *                 taskPhaseDuration:
+   *                   type: number
+   *                   description: Default task phase duration in seconds
+   *                 votingPhaseDuration:
+   *                   type: number
+   *                   description: Default voting phase duration in seconds
+   *                 maxTaskCount:
+   *                   type: number
+   *                   description: Default maximum task count
+   *                 stakeAmount:
+   *                   type: string
+   *                   description: Default stake amount in Wei
+   *                 minPlayers:
+   *                   type: number
+   *                   description: Default minimum players
+   *                 maxPlayers:
+   *                   type: number
+   *                   description: Default maximum players
+   */
+  router.get('/defaults', (req, res) => {
+    try {
+      const defaults = {
+        nightPhaseDuration: parseInt(process.env.DEFAULT_NIGHT_PHASE_DURATION) || 30,
+        resolutionPhaseDuration: parseInt(process.env.DEFAULT_RESOLUTION_PHASE_DURATION) || 10,
+        taskPhaseDuration: parseInt(process.env.DEFAULT_TASK_PHASE_DURATION) || 30,
+        votingPhaseDuration: parseInt(process.env.DEFAULT_VOTING_PHASE_DURATION) || 10,
+        maxTaskCount: parseInt(process.env.DEFAULT_MAX_TASK_COUNT) || 4,
+        stakeAmount: process.env.DEFAULT_STAKE_AMOUNT || '100000000000000000',
+        minPlayers: parseInt(process.env.DEFAULT_MIN_PLAYERS) || 4,
+        maxPlayers: parseInt(process.env.DEFAULT_MAX_PLAYERS) || 10
+      };
+
+      res.json({
+        success: true,
+        defaults
+      });
+    } catch (error) {
+      console.error('❌ Error fetching defaults:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch default settings'
+      });
+    }
+  });
 
   /**
    * @swagger
@@ -93,10 +161,13 @@ module.exports = (gameManagerInstance, evmService) => {
         const contractGameId = await evmService.createGame(stakeAmount, effectiveMinPlayers);
         console.log(`✅ Game created on-chain with ID: ${contractGameId}`);
 
+        // Convert stake amount to Wei for internal storage
+        const stakeAmountInWei = ethers.parseEther(stakeAmount.toString());
+
         // Step 2: Create room in game manager with contract gameId and public flag
         const { gameId, roomCode } = await gameManager.createGame(
           creatorAddress,
-          stakeAmount,
+          stakeAmountInWei.toString(), // Pass as Wei string
           minPlayers,
           contractGameId,
           isPublic || false,
@@ -227,10 +298,13 @@ module.exports = (gameManagerInstance, evmService) => {
       const contractGameId = await evmService.createGame(stakeAmount, effectiveMinPlayers);
       console.log(`✅ Game created on-chain, contract gameId: ${contractGameId}`);
 
+      // Convert stake amount to Wei for internal storage (1 token = 10^18 Wei)
+      const stakeAmountInWei = ethers.parseEther(stakeAmount.toString());
+
       // Step 2: Create room in game manager (user will stake from frontend)
       const { gameId: managerGameId, roomCode } = await gameManager.createGame(
         creatorAddress,
-        stakeAmount,
+        stakeAmountInWei.toString(), // Pass as Wei string
         minPlayers || 4,
         contractGameId,
         isPublic || false,
@@ -298,6 +372,14 @@ module.exports = (gameManagerInstance, evmService) => {
       let gameData = gameManager.getGame(gameId); // Get the raw game object
       if (!gameData) {
         return res.status(404).json({ error: 'Game not found' });
+      }
+
+      // Debug logging for rewards
+      if (gameData.phase === 'ended') {
+        console.log(`📊 GET /api/game/${gameId} - Game ended. Rewards present?`, gameData.rewards ? 'YES' : 'NO');
+        if (gameData.rewards) {
+          console.log(`   Settlement TX: ${gameData.rewards.settlementTxHash}`);
+        }
       }
 
       let game;
@@ -531,10 +613,145 @@ module.exports = (gameManagerInstance, evmService) => {
         return res.status(400).json({ error: 'Game ID, player address, and transaction hash are required' });
       }
 
+      // Get game info
+      const game = gameManager.getGame(gameId);
+      if (!game) {
+        return res.status(404).json({ error: 'Game not found' });
+      }
+
+      // Verify the transaction on-chain before recording the stake
+      console.log('🔍 Verifying transaction on-chain:', transactionHash);
+      try {
+        const provider = evmService.getProvider();
+
+        // Retry logic - RPC nodes may take time to index transactions
+        let receipt = null;
+        const maxRetries = 5;
+        const retryDelay = 2000; // 2 seconds between retries
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          console.log(`🔍 Verification attempt ${attempt}/${maxRetries}`);
+
+          try {
+            const receiptPromise = provider.getTransactionReceipt(transactionHash);
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Timeout')), 5000)
+            );
+
+            receipt = await Promise.race([receiptPromise, timeoutPromise]);
+
+            if (receipt) {
+              console.log('✅ Transaction receipt found');
+              break;
+            }
+          } catch (err) {
+            console.log(`⏳ Attempt ${attempt} failed, retrying...`);
+          }
+
+          // Wait before next retry (except on last attempt)
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          }
+        }
+
+        if (!receipt) {
+          console.warn('⚠️ Transaction not found after retries:', transactionHash);
+          return res.status(400).json({ error: 'Transaction not found on-chain after multiple attempts. Please wait a bit longer and try again.' });
+        }
+
+        // Check if transaction succeeded
+        if (receipt.status !== 1) {
+          console.error('❌ Transaction failed on-chain:', transactionHash);
+          return res.status(400).json({ error: 'Transaction failed on-chain. Your stake was not recorded.' });
+        }
+
+        // Verify the transaction was sent from the claiming address
+        if (receipt.from.toLowerCase() !== playerAddress.toLowerCase()) {
+          console.error('❌ Transaction sender mismatch:', {
+            expected: playerAddress,
+            actual: receipt.from
+          });
+          return res.status(400).json({ error: 'Transaction was not sent from your address' });
+        }
+
+        // Verify the transaction was sent to the correct contract
+        const contractAddress = process.env.CONTRACT_ADDRESS;
+        if (receipt.to.toLowerCase() !== contractAddress.toLowerCase()) {
+          console.error('❌ Transaction contract mismatch:', {
+            expected: contractAddress,
+            actual: receipt.to
+          });
+          return res.status(400).json({ error: 'Transaction was not sent to the correct contract' });
+        }
+
+        // Get the full transaction to verify function call and parameters
+        const tx = await provider.getTransaction(transactionHash);
+        if (!tx) {
+          return res.status(400).json({ error: 'Transaction details not found' });
+        }
+
+        // Verify transaction called joinGame and check the game ID
+        const contractArtifact = require('../services/evm/PepasurABI.json');
+        const contractABI = contractArtifact.abi || contractArtifact;
+        const iface = new ethers.Interface(contractABI);
+
+        try {
+          const decoded = iface.parseTransaction({ data: tx.data, value: tx.value });
+
+          if (decoded.name !== 'joinGame') {
+            console.error('❌ Transaction did not call joinGame:', decoded.name);
+            return res.status(400).json({ error: 'Transaction did not call the joinGame function' });
+          }
+
+          // Verify the game ID matches
+          const txGameId = decoded.args[0].toString();
+          const expectedGameId = game.onChainGameId.toString();
+          if (txGameId !== expectedGameId) {
+            console.error('❌ Game ID mismatch:', {
+              expected: expectedGameId,
+              actual: txGameId
+            });
+            return res.status(400).json({ error: 'Transaction was for a different game' });
+          }
+
+          // Verify the stake amount matches
+          const txStakeAmount = tx.value.toString();
+          const expectedStakeAmount = BigInt(game.stakeAmount).toString();
+          if (txStakeAmount !== expectedStakeAmount) {
+            console.error('❌ Stake amount mismatch:', {
+              expected: expectedStakeAmount,
+              actual: txStakeAmount
+            });
+            return res.status(400).json({ error: 'Stake amount does not match game requirements' });
+          }
+
+          console.log('✅ Transaction verified: joinGame called with correct parameters');
+
+        } catch (decodeError) {
+          console.error('❌ Error decoding transaction:', {
+            error: decodeError.message,
+            stack: decodeError.stack,
+            txData: tx.data,
+            txValue: tx.value.toString()
+          });
+          return res.status(400).json({ error: `Could not decode transaction data: ${decodeError.message}` });
+        }
+
+        console.log('✅ Transaction fully verified on-chain');
+
+      } catch (verifyError) {
+        console.error('❌ Error verifying transaction:', {
+          message: verifyError.message,
+          code: verifyError.code,
+          stack: verifyError.stack
+        });
+        return res.status(500).json({ error: `Failed to verify transaction: ${verifyError.message}` });
+      }
+
       await gameManager.recordPlayerStake(gameId, playerAddress, transactionHash);
 
-      const game = gameManager.getGame(gameId);
-      console.log('✅ Stake recorded. Game now has players:', game?.players);
+      const updatedGame = gameManager.getGame(gameId);
+      console.log('✅ Stake recorded. Game now has players:', updatedGame?.players);
 
       res.json({
         success: true,
@@ -1091,7 +1308,8 @@ module.exports = (gameManagerInstance, evmService) => {
             creator: game.creator,
             players: game.players.length,
             maxPlayers: game.maxPlayers,
-            stakeAmount: game.stakeAmount,
+            stakeAmount: game.stakeAmount,  // Wei string
+            stakeAmountFormatted: ethers.formatEther(game.stakeAmount || '0'),  // Token units for display
             phase: game.phase,
             day: game.day,
             startedAt: game.startedAt
@@ -1162,25 +1380,31 @@ module.exports = (gameManagerInstance, evmService) => {
 
       // Calculate win probabilities for each lobby
       const lobbiesWithProbabilities = lobbies.map(lobby => {
-        const totalPot = lobby.stakeAmount * lobby.playerCount;
-        const netPot = totalPot * 0.98; // After 2% house cut
+        // stakeAmount is in Wei (string) - convert to BigInt for calculations
+        const stakeAmountWei = BigInt(lobby.stakeAmount);
+        const playerCount = BigInt(lobby.currentPlayers.length);
+
+        const totalPot = stakeAmountWei * playerCount;
+        const netPot = (totalPot * 98n) / 100n; // After 2% house cut
 
         // Assuming 1 mafia, rest are non-mafia
-        const mafiaCount = 1;
-        const nonMafiaCount = lobby.minPlayers - mafiaCount;
+        const mafiaCount = 1n;
+        const nonMafiaCount = BigInt(lobby.minPlayers) - mafiaCount;
 
-        const mafiaWinPercent = lobby.playerCount > 0
-          ? Math.round(((netPot / mafiaCount) / lobby.stakeAmount - 1) * 100)
+        const mafiaWinPercent = playerCount > 0n
+          ? Number(((netPot / mafiaCount) * 100n) / stakeAmountWei) - 100
           : 0;
-        const nonMafiaWinPercent = lobby.playerCount > 0
-          ? Math.round(((netPot / nonMafiaCount) / lobby.stakeAmount - 1) * 100)
+        const nonMafiaWinPercent = playerCount > 0n && nonMafiaCount > 0n
+          ? Number(((netPot / nonMafiaCount) * 100n) / stakeAmountWei) - 100
           : 0;
 
         return {
           ...lobby,
+          stakeAmount: lobby.stakeAmount,  // Wei string
+          stakeAmountFormatted: ethers.formatEther(lobby.stakeAmount || '0'),  // Token units for display
           playerCount: lobby.currentPlayers.length,
-          mafiaWinPercent,
-          nonMafiaWinPercent
+          mafiaWinPercent: Math.round(mafiaWinPercent),
+          nonMafiaWinPercent: Math.round(nonMafiaWinPercent)
         };
       });
 

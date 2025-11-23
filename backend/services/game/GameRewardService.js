@@ -91,9 +91,32 @@ class GameRewardService {
         // RECOVERY: Try to reconstruct the staking game from the main game data
         if (game.stakingRequired && game.stakeAmount) {
           console.log(`🔧 Reconstructing staking data for game ${contractGameId}`);
+          console.log(`🔧 game.stakeAmount type: ${typeof game.stakeAmount}, value: ${game.stakeAmount}`);
+
+          // TYPE GUARD: Handle both old Number format and new String format
+          let stakeAmountWei;
+          if (typeof game.stakeAmount === 'string') {
+            // New format: Already in Wei as string
+            stakeAmountWei = BigInt(game.stakeAmount);
+          } else if (typeof game.stakeAmount === 'number') {
+            // Old format: Check if it's in Wei or token units
+            if (game.stakeAmount > 1000000) {
+              // Likely already in Wei (e.g., 1000000000000000)
+              stakeAmountWei = BigInt(Math.floor(game.stakeAmount));
+            } else {
+              // Small number - might be token units (e.g., 0.001) - ERROR!
+              console.error(`❌ stakeAmount is suspiciously small: ${game.stakeAmount}`);
+              console.error(`   This might be token units instead of Wei - using as-is but results will be wrong!`);
+              stakeAmountWei = BigInt(Math.floor(game.stakeAmount));
+            }
+          } else {
+            stakeAmountWei = BigInt(game.stakeAmount);
+          }
 
           // Calculate total staked based on player count and stake amount
-          const totalStaked = game.players.length * game.stakeAmount;
+          const totalStaked = BigInt(game.players.length) * stakeAmountWei;
+
+          console.log(`💰 Reconstruction: ${game.players.length} players × ${stakeAmountWei.toString()} Wei = ${totalStaked.toString()} Wei`);
 
           // Register the game in staking service
           this.stakingManager.stakingService.stakedGames.set(contractGameId, {
@@ -104,8 +127,23 @@ class GameRewardService {
             createdAt: game.createdAt || Date.now()
           });
 
+          // Also reconstruct individual player stakes
+          game.players.forEach(playerAddress => {
+            const stakeKey = `${contractGameId}-${playerAddress}`;
+            if (!this.stakingManager.stakingService.playerStakes.has(stakeKey)) {
+              this.stakingManager.stakingService.playerStakes.set(stakeKey, {
+                gameId: contractGameId,
+                playerAddress: playerAddress,
+                amount: stakeAmountWei,
+                txHash: 'reconstructed',
+                timestamp: Date.now(),
+                status: 'staked'
+              });
+            }
+          });
+
           stakingGame = this.stakingManager.stakingService.stakedGames.get(contractGameId);
-          console.log(`✅ Successfully reconstructed staking data - continuing with reward calculation`);
+          console.log(`✅ Successfully reconstructed staking data with ${game.players.length} player stakes`);
         } else {
           console.error(`❌ Cannot reconstruct - game not configured for staking`);
           console.error(`   Skipping reward calculation and distribution`);
@@ -117,8 +155,7 @@ class GameRewardService {
       const rewards = this.stakingManager.stakingService.calculateRewards(contractGameId, winners, losers, game.roles, game.eliminated || []);
       console.log(`💰 Rewards calculated:`, rewards);
 
-      // Get blockchain service from GameManager and pass it to distributeRewards
-      const blockchainService = this.getBlockchainService();
+      // Reuse blockchain service from earlier in the function
       const distributionResult = await this.stakingManager.stakingService.distributeRewards(
         contractGameId,
         rewards,
@@ -129,6 +166,7 @@ class GameRewardService {
 
       // Store reward info in game
       game.rewards = distributionResult;
+      console.log(`✅ Stored rewards on game object. game.rewards is now:`, game.rewards ? 'SET' : 'UNDEFINED');
 
     } catch (error) {
       console.error('❌ Error distributing rewards:', error);
