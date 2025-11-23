@@ -71,7 +71,4 @@ yarn-error.log*
 /flowContracts/node_modules/
 smoothsend-demo/
 
-# Documentation files (ignore all .md files)
-!README.md
-!business_logic_analysis.md
-!COMMIT_REVEAL_INTEGRATION_PLAN.md
+
